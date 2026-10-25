@@ -1,0 +1,11 @@
+# Binaries
+main
+sbeads
+
+# SQLite databases
+.sbeads*
+*.db
+.test
+
+# Tool caches
+.codegraph/

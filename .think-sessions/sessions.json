@@ -1,0 +1,29 @@
+{
+  "sessions": [
+    {
+      "id": "session-001",
+      "created": "2026-10-25T13:43:49.575Z",
+      "lastActive": "2026-10-25T16:11:57.466Z",
+      "task": "Create sbeads - issue tracker with SQLite backend (Go)"
+    },
+    {
+      "id": "session-002",
+      "created": "2026-10-25T14:55:24.488Z",
+      "lastActive": "2026-10-25T14:55:24.491Z",
+      "task": "(no state yet)"
+    },
+    {
+      "id": "session-003",
+      "created": "2026-10-25T15:34:37.669Z",
+      "lastActive": "2026-10-25T15:34:37.670Z",
+      "task": "(no state yet)"
+    },
+    {
+      "id": "session-004",
+      "created": "2026-10-25T16:11:40.897Z",
+      "lastActive": "2026-10-25T16:11:40.897Z",
+      "task": "(no state yet)"
+    }
+  ],
+  "active": "session-001"
+}
