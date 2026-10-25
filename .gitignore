@@ -1,6 +1,6 @@
 # Binaries
-main
-sbeads
+/main
+/sbeads
 
 # SQLite databases
 .sbeads*
