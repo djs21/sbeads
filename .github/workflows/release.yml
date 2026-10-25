@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Fetch all tags explicitly
+        run: git fetch --tags --force 2>/dev/null || true
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache: true
+
+      - name: Build all targets (Pure Go, CGO_ENABLED=0)
+        env:
+          CGO_ENABLED: 0
+        run: |
+          mkdir -p dist
+          VERSION=${{ github.ref_name }}
+          if [ -z "$VERSION" ] || [ "$VERSION" = "master" ] || [ "$VERSION" = "main" ]; then
+            VERSION=$(git describe --tags --always 2>/dev/null || echo "v1.0.0")
+          fi
+
+          LDFLAGS="-s -w -X main.Version=${VERSION}"
+
+          # Linux
+          GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/sbeads-linux-amd64 ./cmd/bd
+          GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/sbeads-linux-arm64 ./cmd/bd
+          chmod +x dist/sbeads-linux-*
+
+          # macOS (Darwin)
+          GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/sbeads-darwin-arm64 ./cmd/bd
+          GOOS=darwin GOARCH=amd64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/sbeads-darwin-amd64 ./cmd/bd
+          chmod +x dist/sbeads-darwin-*
+
+          # Windows
+          GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="${LDFLAGS}" -o dist/sbeads-windows-amd64.exe ./cmd/bd
+
+          # Checksums
+          cd dist
+          sha256sum sbeads-* > checksums.txt
+          cd ..
+
+      - name: Extract tag notes
+        id: tag
+        run: |
+          TAG_NAME="${{ github.ref_name }}"
+          TAG_TYPE=$(git cat-file -t "$TAG_NAME" 2>/dev/null || echo "unknown")
+          NOTES=""
+
+          # 1. If annotated tag object, extract the exact tag annotation body
+          if [ "$TAG_TYPE" = "tag" ]; then
+            NOTES=$(git cat-file -p "$TAG_NAME" | sed '1,/^$/d' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          fi
+
+          # 2. Fallback: if lightweight tag or empty annotation, generate from git log changelog
+          if [ -z "$NOTES" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 "${TAG_NAME}^" 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              NOTES=$(printf "### Changes since %s\n\n" "$PREV_TAG"; git log "${PREV_TAG}..${TAG_NAME}" --pretty=format:"- %s (%h)")
+            else
+              NOTES=$(printf "### Changes\n\n"; git log -n 15 --pretty=format:"- %s (%h)")
+            fi
+          fi
+
+          # 3. Output notes safely using a unique delimiter
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "notes<<$EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: sbeads ${{ github.ref_name }}
+          body: |
+            ${{ steps.tag.outputs.notes }}
+
+            ---
+
+            ### Installation
+
+            **Linux amd64:**
+            ```bash
+            curl -Lo sbeads https://github.com/djs21/sbeads/releases/download/${{ github.ref_name }}/sbeads-linux-amd64
+            chmod +x sbeads
+            sudo mv sbeads /usr/local/bin/
+            ```
+
+            **Linux arm64:**
+            ```bash
+            curl -Lo sbeads https://github.com/djs21/sbeads/releases/download/${{ github.ref_name }}/sbeads-linux-arm64
+            chmod +x sbeads
+            sudo mv sbeads /usr/local/bin/
+            ```
+
+            **macOS (Apple Silicon / arm64):**
+            ```bash
+            curl -Lo sbeads https://github.com/djs21/sbeads/releases/download/${{ github.ref_name }}/sbeads-darwin-arm64
+            chmod +x sbeads
+            sudo mv sbeads /usr/local/bin/
+            ```
+
+            **Windows (amd64):**
+            Download `sbeads-windows-amd64.exe` from assets below and place in your PATH as `sbeads.exe`.
+          files: dist/*
+          draft: false
+          prerelease: false
