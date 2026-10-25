@@ -5,7 +5,7 @@ description: Lightweight SQLite-backed issue tracker and task coordinator for AI
 
 # sbeads Agent Skill
 
-`sbeads` (binary `sbeads` or `bd`) is a local, fast, SQLite-backed task coordinator. It uses WAL mode for concurrency, explicit claim semantics to prevent race conditions among agents, and parent/child dependency management.
+`sbeads` (binary `sbeads` or `bd`) is a local, fast, SQLite-backed task coordinator. Built with pure-Go SQLite (`modernc.org/sqlite`, `CGO_ENABLED=0`), it compiles into fully static binaries requiring zero C toolchains. It uses WAL mode (`_journal_mode=WAL&_busy_timeout=5000`) for concurrency, explicit claim semantics to prevent race conditions among agents, and parent/child dependency management.
 
 ---
 

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 	"sbeads/internal/types"
 )
 
@@ -33,10 +33,11 @@ func NewStorage(path string) (*StorageImpl, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, fmt.Errorf("creating database directory: %w", err)
 	}
-	db, err := sql.Open("sqlite3", fmt.Sprintf("%s?_journal_mode=WAL", path))
+	db, err := sql.Open("sqlite", fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000", path))
 	if err != nil {
 		return nil, err
 	}
+	db.SetMaxOpenConns(1)
 	return &StorageImpl{db: db}, nil
 }
 
@@ -154,7 +155,7 @@ func CreateTables(path string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("creating database directory: %w", err)
 	}
-	db, err := sql.Open("sqlite3", fmt.Sprintf("%s?_journal_mode=WAL", path))
+	db, err := sql.Open("sqlite", fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000", path))
 	if err != nil {
 		return err
 	}

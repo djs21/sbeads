@@ -59,8 +59,8 @@ if [ "$GOOS" = "windows" ]; then
   OUTPUT="sbeads.exe"
 fi
 
-# SQLite note: mattn/go-sqlite3 requires CGO. Keep CGO enabled.
-export CGO_ENABLED=1
+# Pure-Go SQLite: modernc.org/sqlite enables 100% static CGO-free binaries.
+export CGO_ENABLED=0
 
 if [ "$MODE" = "dev" ]; then
   COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "local")

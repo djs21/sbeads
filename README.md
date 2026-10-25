@@ -29,10 +29,11 @@ sbeads/
 └── backend/          # SQLite WAL storage engine, auto-schema creation, query execution
 ```
 
-### Storage Engine: SQLite in WAL Mode
+### Storage Engine: Pure-Go SQLite in WAL Mode
 - **Database Location (`.sbeads/sbeads.db`)**: By default, issues and dependencies are stored in `.sbeads/sbeads.db`. Both `NewStorage` and `CreateTables` automatically invoke `os.MkdirAll` to create `.sbeads/` (with permissions `0755`) if it does not exist.
+- **Pure-Go Architecture (`CGO_ENABLED=0`)**: Backed by `modernc.org/sqlite`, `sbeads` requires zero C toolchains (`gcc`, `clang`, or `musl`) and compiles into 100% static, cross-platform standalone binaries for Linux, macOS, and Windows.
 - **Ancestor Discovery**: When executed from any nested subdirectory, `sbeads` searches upward through parent directories to locate an existing `.sbeads/` directory, resolving to `<foundDir>/sbeads.db`.
-- **WAL Mode (`_journal_mode=WAL`)**: Connections open SQLite with Write-Ahead Logging enabled. This allows concurrent readers and non-blocking reads while writes occur, making it robust for concurrent agent swarms and subagents.
+- **WAL Mode (`_journal_mode=WAL&_busy_timeout=5000`)**: Connections open SQLite with Write-Ahead Logging and a 5,000ms busy timeout enabled. This allows concurrent readers, non-blocking reads while writes occur, and graceful lock acquisition, making it robust for concurrent agent swarms and subagents.
 - **Auto-Initialization**: Database tables and indices are created automatically via `CREATE TABLE IF NOT EXISTS` on first invocation.
 
 ### Data Schema
@@ -65,8 +66,8 @@ sbeads/
 ## Installation & Build
 
 ### Prerequisites
-- Go 1.27+ (or Go 1.21+ with CGO enabled)
-- GCC / C toolchain (required for `go-sqlite3` CGO compilation)
+- Go 1.27+ (or Go 1.21+)
+- Zero external C toolchains or GCC required (100% pure-Go SQLite via `modernc.org/sqlite`, fully static binaries)
 
 ### Build from Source
 
