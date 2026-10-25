@@ -3,8 +3,11 @@
 /sbeads
 
 # SQLite databases
+.sbeads/
 .sbeads*
 *.db
+*.db-wal
+*.db-shm
 .test
 
 # Tool caches

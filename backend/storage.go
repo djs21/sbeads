@@ -3,6 +3,8 @@ package backend
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -28,6 +30,9 @@ type StorageImpl struct {
 
 // NewStorage creates a new database storage
 func NewStorage(path string) (*StorageImpl, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return nil, fmt.Errorf("creating database directory: %w", err)
+	}
 	db, err := sql.Open("sqlite3", fmt.Sprintf("%s?_journal_mode=WAL", path))
 	if err != nil {
 		return nil, err
@@ -146,6 +151,9 @@ func (s *StorageImpl) Close() error {
 
 // CreateTables creates the SQLite tables
 func CreateTables(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("creating database directory: %w", err)
+	}
 	db, err := sql.Open("sqlite3", fmt.Sprintf("%s?_journal_mode=WAL", path))
 	if err != nil {
 		return err

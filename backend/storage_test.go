@@ -1,6 +1,7 @@
 package backend
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -136,4 +137,25 @@ func TestStorage(t *testing.T) {
 			t.Errorf("expected IsClosed=1, got %d", closed.IsClosed)
 		}
 	})
+}
+
+func TestStorage_AutomaticDirectoryCreation(t *testing.T) {
+	tempDir := t.TempDir()
+	nestedDir := filepath.Join(tempDir, "deep", "nested", ".sbeads")
+	dbPath := filepath.Join(nestedDir, "sbeads.db")
+
+	if err := CreateTables(dbPath); err != nil {
+		t.Fatalf("CreateTables failed: %v", err)
+	}
+
+	fi, err := os.Stat(nestedDir)
+	if err != nil || !fi.IsDir() {
+		t.Fatalf("expected directory %s to be created automatically", nestedDir)
+	}
+
+	storage, err := NewStorage(dbPath)
+	if err != nil {
+		t.Fatalf("NewStorage failed: %v", err)
+	}
+	defer storage.Close()
 }

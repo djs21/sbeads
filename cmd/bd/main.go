@@ -5,16 +5,66 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"sbeads/backend"
 	"sbeads/internal/domain"
 )
 
 func getDBPath() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
+	return findDatabasePath(cwd)
+}
+
+func findDatabasePath(startDir string) string {
+	// a. SBEADS_DIR: if set, return filepath.Join(dir, "sbeads.db") (or if it already points to a db file, use it).
+	if dir := os.Getenv("SBEADS_DIR"); dir != "" {
+		if strings.HasSuffix(dir, ".db") {
+			return dir
+		}
+		if fi, err := os.Stat(dir); err == nil && !fi.IsDir() {
+			return dir
+		}
+		return filepath.Join(dir, "sbeads.db")
+	}
+
+	// b. SBEADS_DB: if set, return directly (or if directory, append sbeads.db).
 	if p := os.Getenv("SBEADS_DB"); p != "" {
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			return filepath.Join(p, "sbeads.db")
+		}
 		return p
 	}
-	return ".sbeads"
+
+	// c. Ancestor search: walk upwards from current working directory looking for a directory named .sbeads.
+	// If found, return filepath.Join(foundDir, "sbeads.db").
+	curr, err := filepath.Abs(startDir)
+	if err != nil {
+		curr = startDir
+	}
+	for {
+		candidate := filepath.Join(curr, ".sbeads")
+		if fi, err := os.Stat(candidate); err == nil && fi.IsDir() {
+			return filepath.Join(candidate, "sbeads.db")
+		}
+		parent := filepath.Dir(curr)
+		if parent == curr {
+			break
+		}
+		curr = parent
+	}
+
+	// d. Default: return filepath.Join(".sbeads", "sbeads.db").
+	return filepath.Join(".sbeads", "sbeads.db")
+}
+
+// FindDatabasePath exports findDatabasePath for testing or external usage
+func FindDatabasePath(startDir string) string {
+	return findDatabasePath(startDir)
 }
 
 func main() {

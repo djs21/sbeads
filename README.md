@@ -11,7 +11,8 @@ Modern autonomous agent swarms and multi-agent development workflows require str
 - **Agent-First Coordination**: Explicit claim semantics (`sbeads claim`) prevent duplicate work across concurrent agent panes or subagents.
 - **Dependency Graphs**: First-class parent/child issue dependencies (`sbeads dep add`) block dependent tasks until prerequisite tasks finish.
 - **Fast Ready Queues**: Query unblocked, actionable issues instantly (`sbeads ready`) to drive autonomous loops.
-- **Deterministic Storage**: Local SQLite database file (`.sbeads`) that can be committed, scoped per git worktree, or shared across processes via environment variables.
+- **Deterministic Storage**: Local SQLite database stored at `.sbeads/sbeads.db`. The containing `.sbeads/` directory is automatically created.
+- **Smart Ancestor Discovery**: Like git or beads, `sbeads` walks upwards from nested subdirectories to discover the nearest `.sbeads/` directory, letting you run CLI commands anywhere inside your project tree.
 
 ---
 
@@ -29,7 +30,8 @@ sbeads/
 ```
 
 ### Storage Engine: SQLite in WAL Mode
-- **Database File**: Default path is `.sbeads` in the active working directory. Override using the `SBEADS_DB` environment variable (e.g., `export SBEADS_DB=/shared/path/tasks.db`).
+- **Database Location (`.sbeads/sbeads.db`)**: By default, issues and dependencies are stored in `.sbeads/sbeads.db`. Both `NewStorage` and `CreateTables` automatically invoke `os.MkdirAll` to create `.sbeads/` (with permissions `0755`) if it does not exist.
+- **Ancestor Discovery**: When executed from any nested subdirectory, `sbeads` searches upward through parent directories to locate an existing `.sbeads/` directory, resolving to `<foundDir>/sbeads.db`.
 - **WAL Mode (`_journal_mode=WAL`)**: Connections open SQLite with Write-Ahead Logging enabled. This allows concurrent readers and non-blocking reads while writes occur, making it robust for concurrent agent swarms and subagents.
 - **Auto-Initialization**: Database tables and indices are created automatically via `CREATE TABLE IF NOT EXISTS` on first invocation.
 
@@ -89,17 +91,29 @@ sudo mv ./sbeads /usr/local/bin/sbeads
 
 ---
 
-## Configuration
+## Configuration & Database Discovery
 
-Set the `SBEADS_DB` environment variable to control the location of the SQLite database:
+`sbeads` resolves its database path using the standard beads search order:
+
+1. **`SBEADS_DIR`**: If set, `sbeads` uses this directory (appending `sbeads.db`) or uses the direct path if pointing directly to a `.db` file.
+2. **`SBEADS_DB`**: If set, `sbeads` uses this database file path directly (or appends `sbeads.db` if pointing to a directory).
+3. **Ancestor Search**: Walks upwards from the current working directory looking for a directory named `.sbeads`. If found, uses `<foundDir>/sbeads.db`.
+4. **Default**: Returns `.sbeads/sbeads.db` in the current working directory.
+
+### Examples
 
 ```bash
-# Default behavior (uses ./.sbeads)
-sbeads ready
+# 1. Default / Ancestor discovery (uses .sbeads/sbeads.db in project root or current dir)
+cd /my/project/nested/subpkg
+sbeads ready  # automatically finds /my/project/.sbeads/sbeads.db!
 
-# Custom database file (e.g., shared across subagent worktrees)
-export SBEADS_DB="/var/tmp/swarm-tasks.db"
-sbeads ready
+# 2. Directory override using SBEADS_DIR
+export SBEADS_DIR="/var/tmp/sbeads-storage"
+sbeads ready  # uses /var/tmp/sbeads-storage/sbeads.db
+
+# 3. Direct DB file override using SBEADS_DB
+export SBEADS_DB="/shared/path/swarm.db"
+sbeads ready  # uses /shared/path/swarm.db directly
 ```
 
 ---

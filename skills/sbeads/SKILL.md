@@ -27,11 +27,20 @@ Ensure the `sbeads` binary is built or located on your PATH:
 go build -o sbeads ./cmd/bd
 ```
 
-### Shared Database Configuration
-By default, `sbeads` stores state in `./.sbeads` in the current working directory.
-When running concurrent subagents or across multiple git worktrees, export `SBEADS_DB` to point to a common path:
+### Database Storage & Discovery
+By default, `sbeads` stores issues in `.sbeads/sbeads.db` (creating the `.sbeads/` directory automatically with `0755` permissions).
+
+It adopts the **beads discovery pattern**:
+1. **`SBEADS_DIR`**: Explicit directory path containing or pointing to `sbeads.db`.
+2. **`SBEADS_DB`**: Explicit database file path.
+3. **Ancestor Search**: Automatically walks up parent directories from the current working directory searching for `.sbeads/`, finding `<ancestor>/.sbeads/sbeads.db`. This allows subagents running in nested source directories or subpackages to seamlessly interact with the project tracker without setting environment variables.
+4. **Default**: Falls back to `.sbeads/sbeads.db` in the current working directory.
+
+When running concurrent subagents across multiple git worktrees or shared panes, export `SBEADS_DIR` or `SBEADS_DB` to point to a centralized location:
 ```bash
-export SBEADS_DB="/home/djs/project/sbeads/.sbeads"
+export SBEADS_DIR="/home/djs/project/sbeads/.sbeads"
+# or
+export SBEADS_DB="/home/djs/project/sbeads/.sbeads/sbeads.db"
 ```
 
 ---
