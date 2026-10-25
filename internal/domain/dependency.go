@@ -21,30 +21,23 @@ func (d *DependencyDomain) AddDependency(childID, parentID string) error {
 	}
 
 	// Check if dependency already exists
-	_, err := d.storage.GetDependencies(childID)
-	if err == nil {
+	has, err := d.HasDependency(childID, parentID)
+	if err != nil {
+		return err
+	}
+	if has {
 		return ErrDependencyExists
 	}
 
 	// Add dependency
-	err = d.storage.AddDependency(childID, parentID)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return d.storage.AddDependency(childID, parentID)
 }
 
 // RemoveDependency removes a dependency
 func (d *DependencyDomain) RemoveDependency(childID, parentID string) error {
-	_, err := d.storage.GetDependencies(childID)
-	if err != nil {
+	has, err := d.HasDependency(childID, parentID)
+	if err != nil || !has {
 		return ErrDependencyNotFound
-	}
-
-	err = d.storage.AddDependency(childID, parentID)
-	if err != nil {
-		return err
 	}
 
 	return nil
