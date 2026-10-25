@@ -75,11 +75,15 @@ sbeads/
 git clone https://github.com/djs21/sbeads.git
 cd sbeads
 
-# Build the binary
+# Build using build script
+./build.sh --dev     # Development binary with git commit
+./build.sh --prod    # Production stripped binary with git tag
+
+# Or build directly with go
 go build -o sbeads ./cmd/bd
 
 # Verify installation
-./sbeads
+./sbeads version
 ```
 
 To install system-wide or into `$GOPATH/bin`:
@@ -345,6 +349,20 @@ sbeads dep remove [flags] [child-id] [parent-id]
 
 **Validation & Error Conditions:**
 - Returns error `dependency not found` if the relation does not exist.
+
+---
+
+### 7. `version`
+Prints the application version string.
+
+```bash
+sbeads version
+```
+
+**Output:**
+```
+sbeads version dev-8fe518a
+```
 
 ---
 

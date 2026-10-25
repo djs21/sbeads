@@ -67,6 +67,9 @@ func FindDatabasePath(startDir string) string {
 	return findDatabasePath(startDir)
 }
 
+// Version is the application version string, injected at build time via -ldflags
+var Version = "dev"
+
 func main() {
 	if err := execute(os.Args); err != nil {
 		fmt.Printf("Error: %v\n", err)
@@ -78,7 +81,7 @@ func execute(args []string) error {
 	if len(args) < 2 {
 		fmt.Println("sbeads - Minimal issue tracker")
 		fmt.Println("Usage: sbeads <command> [options]")
-		fmt.Println("Commands: create, ready, claim, close, show, dep")
+		fmt.Println("Commands: create, ready, claim, close, show, dep, version")
 		return errors.New("command required")
 	}
 
@@ -97,9 +100,16 @@ func execute(args []string) error {
 		return HandleShow(args[2:])
 	case "dep":
 		return HandleDep(args[2:])
+	case "version":
+		return HandleVersion(args[2:])
 	default:
 		return fmt.Errorf("unknown command: %s", command)
 	}
+}
+
+func HandleVersion(args []string) error {
+	fmt.Printf("sbeads version %s\n", Version)
+	return nil
 }
 
 func HandleCreate(args []string) error {

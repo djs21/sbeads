@@ -56,6 +56,19 @@ func TestCLIRoutingAndValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("Version command prints version", func(t *testing.T) {
+		out, err := captureOutput(func() error {
+			return execute([]string{"sbeads", "version"})
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expected := "sbeads version " + Version
+		if !strings.Contains(out, expected) {
+			t.Errorf("expected %q in output, got %q", expected, out)
+		}
+	})
+
 	t.Run("Create without title fails", func(t *testing.T) {
 		_, err := captureOutput(func() error {
 			return execute([]string{"sbeads", "create"})

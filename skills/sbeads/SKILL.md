@@ -23,7 +23,9 @@ Use `sbeads` when:
 
 Ensure the `sbeads` binary is built or located on your PATH:
 ```bash
-# If sbeads is not in PATH, build it from the repository root
+# If sbeads is not in PATH, build it using build.sh
+./build.sh --dev
+# or directly:
 go build -o sbeads ./cmd/bd
 ```
 
