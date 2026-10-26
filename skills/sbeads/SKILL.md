@@ -81,18 +81,19 @@ Agents must strictly follow the lifecycle state machine:
 
 ### 1. Creating Issues
 ```bash
-# Basic task creation
+# Basic task creation (positional or short flag)
 sbeads create "Implement user session timeout"
+sbeads create -t "Implement user session timeout"
 
 # Detailed task creation with priority and classification
 sbeads create \
-  --title "Fix memory leak in buffer pool" \
-  --issue-type "bug" \
-  --priority 3 \
-  --description "Buffer slice retains old references causing GC retention"
+  -t "Fix memory leak in buffer pool" \
+  -y "bug" \
+  -p 3 \
+  -d "Buffer slice retains old references causing GC retention"
 
-# Capturing the generated Issue ID in bash
-ISSUE_ID=$(sbeads create "Draft API specification" | grep -o 'issue-[a-f0-9]\{32\}')
+# Capturing the generated Issue ID in bash (3-character Base36 ID, e.g. sbeads-abc)
+ISSUE_ID=$(sbeads create "Draft API specification" | grep -o '[a-z0-9_-]*-[0-9a-z]\{3\}')
 echo "New issue: $ISSUE_ID"
 ```
 
@@ -102,11 +103,11 @@ echo "New issue: $ISSUE_ID"
 sbeads ready
 
 # Example output:
-# issue-8b209d80dcf2f205a2e7c413b860b299: Draft API specification
-# issue-e970a2f1ca0b8a248fca8b99c855a822: Implement user session timeout
+# sbeads-k7a: Draft API specification
+# sbeads-4z9: Implement user session timeout
 
 # Scriptable: Get first ready issue ID
-FIRST_READY=$(sbeads ready | grep -E '^issue-[a-f0-9]{32}' | head -n 1 | cut -d: -f1)
+FIRST_READY=$(sbeads ready | grep -E '^[a-z0-9_-]+-[0-9a-z]{3}:' | head -n 1 | cut -d: -f1)
 ```
 
 ### 3. Claiming an Issue
@@ -158,14 +159,15 @@ sbeads close "$ISSUE_ID"
 ## Output Parsing Patterns
 
 ### Extracting Issue IDs
-All `sbeads` issue IDs follow the regular expression:
+All `sbeads` issue IDs follow the regular expression (3-character Base36 hash):
 ```regex
-issue-[0-9a-f]{32}
+[a-z0-9_-]+-[0-9a-z]{3}
 ```
+Prefix lookup is supported: you can query using exact ID `sbeads-abc` or short hash `abc`!
 
 - From `sbeads create`:
   ```bash
-  # Output: Created issue: issue-4df45e43f1145ee2dfef2ec6c367adbf (Title)
+  # Output: Created issue: sbeads-k7a (Title)
   ID=$(echo "$OUTPUT" | sed -n 's/.*Created issue: \([a-z0-9-]*\).*/\1/p')
   ```
 

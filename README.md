@@ -135,11 +135,12 @@ sbeads create [flags] [title]
 ```
 
 **Options & Flags:**
-- `--title <string>`: Issue title (required if positional title omitted).
-- `--issue-type <string>`: Type category (e.g. `bug`, `feature`, `task`).
-- `--priority <int>`: Priority rating (0–10, default: `0`). Must be non-negative.
-- `--description <string>`: Detailed issue description or specification.
-- `--blocked <0|1>`: Explicit blocked flag (`0` = unblocked, `1` = blocked). Default: `0`.
+- `-t`, `--title <string>`: Issue title (required if positional title omitted).
+- `-y`, `--type`, `--issue-type <string>`: Type category (e.g. `bug`, `feature`, `task`). Default: `task`.
+- `-p`, `--priority <int>`: Priority rating (0–10, default: `0`). Must be non-negative.
+- `-d`, `--description <string>`: Detailed issue description or specification.
+- `-b`, `--blocked <0|1>`: Explicit blocked flag (`0` = unblocked, `1` = blocked). Default: `0`.
+- `-h`, `--help`: Help for create command.
 
 **Positional Shorthand:**
 If `--title` is omitted, the first positional argument is treated as the title.
@@ -149,6 +150,9 @@ If `--title` is omitted, the first positional argument is treated as the title.
 # Positional title
 sbeads create "Fix database reconnection timeout"
 
+# Short flags specification
+sbeads create -t "Implement user auth token revocation" -y "feature" -p 2 -d "Tokens must be immediately invalidated"
+
 # Full flag specification
 sbeads create \
   --title "Implement user auth token revocation" \
@@ -157,12 +161,12 @@ sbeads create \
   --description "Tokens must be immediately invalidated in SQLite cache upon logout"
 
 # Creating a pre-blocked task
-sbeads create "Deploy to staging" --blocked 1
+sbeads create "Deploy to staging" -b 1
 ```
 
 **Output:**
 ```
-Created issue: issue-4df45e43f1145ee2dfef2ec6c367adbf (Fix database reconnection timeout)
+Created issue: sbeads-k7a (Fix database reconnection timeout)
 ```
 
 ---
@@ -179,8 +183,8 @@ None.
 
 **Output:**
 ```
-issue-4df45e43f1145ee2dfef2ec6c367adbf: Fix database reconnection timeout
-issue-a75d5e49392e92c4bbf332c02919aa78: Implement user auth token revocation
+sbeads-k7a: Fix database reconnection timeout
+sbeads-4z9: Implement user auth token revocation
 ```
 If no issues are ready:
 ```
@@ -198,8 +202,9 @@ sbeads claim [flags] [issue-id]
 
 **Options & Flags:**
 - `--issue-id <string>`: Issue ID to claim (required if positional ID omitted).
-- `--agent <string>`: Name or identifier of claiming agent (default: `"me"`).
-- `--assignee <string>`: Assignee username or role.
+- `-m`, `--agent <string>`: Name or identifier of claiming agent (default: `"me"`).
+- `-a`, `--assignee <string>`: Assignee username or role.
+- `-h`, `--help`: Help for claim command.
 
 **Validation & Error Conditions:**
 - Fails if the issue is already claimed (`issue already claimed`).
@@ -207,16 +212,17 @@ sbeads claim [flags] [issue-id]
 
 **Examples:**
 ```bash
-# Claim using positional ID
-sbeads claim issue-4df45e43f1145ee2dfef2ec6c367adbf
+# Claim using positional ID (or short hash)
+sbeads claim sbeads-k7a
+sbeads claim k7a
 
 # Claim with explicit agent name
-sbeads claim --issue-id issue-4df45e43f1145ee2dfef2ec6c367adbf --agent worker-1 --assignee djs
+sbeads claim --issue-id sbeads-k7a --agent worker-1 --assignee djs
 ```
 
 **Output:**
 ```
-Claimed issue: issue-4df45e43f1145ee2dfef2ec6c367adbf (Fix database reconnection timeout) by worker-1
+Claimed issue: sbeads-k7a (Fix database reconnection timeout) by worker-1
 ```
 
 ---
