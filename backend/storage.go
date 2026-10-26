@@ -21,6 +21,8 @@ type Storage interface {
 	ClaimIssue(id, assignee, agent string) error
 	UnclaimIssue(id string) error
 	GetDependencies(issueID string) ([]string, error)
+	GetDependents(parentID string) ([]string, error)
+	GetDependencyEdges(issueID string) (*DependencyEdges, error)
 	GetReadyIssues() ([]types.Issue, error)
 	AddDependency(childID, parentID string) error
 	Close() error
@@ -103,14 +105,14 @@ func (s *StorageImpl) GetIssue(id string) (*types.Issue, error) {
 	return &issue, nil
 }
 
-// ListIssues returns all issues
-func (s *StorageImpl) ListIssues() ([]types.Issue, error) {
+// DependencyEdges holds the parent blockers and child dependents for an issue
+type DependencyEdges struct {
+	Blockers   []types.Issue
+	Dependents []types.Issue
+}
+
+func scanIssues(rows *sql.Rows) ([]types.Issue, error) {
 	var issues []types.Issue
-	rows, err := s.db.Query("SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at FROM issues ORDER BY created_at DESC")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	for rows.Next() {
 		var issue types.Issue
 		var createdAtStr, updatedAtStr string
@@ -126,10 +128,20 @@ func (s *StorageImpl) ListIssues() ([]types.Issue, error) {
 		}
 		issues = append(issues, issue)
 	}
-	if err = rows.Err(); err != nil {
+	if err := rows.Err(); err != nil {
 		return issues, err
 	}
 	return issues, nil
+}
+
+// ListIssues returns all issues
+func (s *StorageImpl) ListIssues() ([]types.Issue, error) {
+	rows, err := s.db.Query("SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at FROM issues ORDER BY created_at DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanIssues(rows)
 }
 
 // CloseIssue marks an issue as closed
@@ -141,7 +153,7 @@ func (s *StorageImpl) CloseIssue(id string) error {
 
 // ClaimIssue claims an issue for an agent
 func (s *StorageImpl) ClaimIssue(id, assignee, agent string) error {
-	res, err := s.db.Exec("UPDATE issues SET is_claimed = 1, is_blocked = 1, agent = ?, assignee = ?, updated_at = ? WHERE id = ?",
+	res, err := s.db.Exec("UPDATE issues SET is_claimed = 1, agent = ?, assignee = ?, updated_at = ? WHERE id = ?",
 		agent, assignee, time.Now().Format(time.RFC3339), id)
 	if err != nil {
 		return err
@@ -158,7 +170,7 @@ func (s *StorageImpl) ClaimIssue(id, assignee, agent string) error {
 
 // UnclaimIssue releases a claimed issue back to unclaimed state
 func (s *StorageImpl) UnclaimIssue(id string) error {
-	res, err := s.db.Exec("UPDATE issues SET is_claimed = 0, is_blocked = 0, agent = '', assignee = '', updated_at = ? WHERE id = ? AND is_claimed = 1",
+	res, err := s.db.Exec("UPDATE issues SET is_claimed = 0, agent = '', assignee = '', updated_at = ? WHERE id = ? AND is_claimed = 1",
 		time.Now().Format(time.RFC3339), id)
 	if err != nil {
 		return err
@@ -198,6 +210,69 @@ func (s *StorageImpl) GetDependencies(issueID string) ([]string, error) {
 	return deps, nil
 }
 
+// GetDependents returns all child issue IDs that depend on the given parentID
+func (s *StorageImpl) GetDependents(parentID string) ([]string, error) {
+	var dependents []string
+	rows, err := s.db.Query("SELECT child_id FROM dependencies WHERE parent_id = ? ORDER BY child_id ASC", parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var childID string
+		if err := rows.Scan(&childID); err != nil {
+			return nil, err
+		}
+		dependents = append(dependents, childID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return dependents, nil
+}
+
+// GetDependencyEdges returns the blockers (parents) and dependents (children) for an issue
+func (s *StorageImpl) GetDependencyEdges(issueID string) (*DependencyEdges, error) {
+	blockersQuery := `SELECT p.id, p.title, p.issue_type, p.priority, p.description, p.is_blocked, p.is_closed, p.is_claimed, p.agent, p.assignee, p.created_at, p.updated_at
+FROM issues p
+JOIN dependencies d ON d.parent_id = p.id
+WHERE d.child_id = ?
+ORDER BY p.priority DESC, p.created_at ASC`
+
+	blockersRows, err := s.db.Query(blockersQuery, issueID)
+	if err != nil {
+		return nil, fmt.Errorf("querying blockers: %w", err)
+	}
+	defer blockersRows.Close()
+
+	blockers, err := scanIssues(blockersRows)
+	if err != nil {
+		return nil, fmt.Errorf("scanning blockers: %w", err)
+	}
+
+	dependentsQuery := `SELECT c.id, c.title, c.issue_type, c.priority, c.description, c.is_blocked, c.is_closed, c.is_claimed, c.agent, c.assignee, c.created_at, c.updated_at
+FROM issues c
+JOIN dependencies d ON d.child_id = c.id
+WHERE d.parent_id = ?
+ORDER BY c.priority DESC, c.created_at ASC`
+
+	dependentsRows, err := s.db.Query(dependentsQuery, issueID)
+	if err != nil {
+		return nil, fmt.Errorf("querying dependents: %w", err)
+	}
+	defer dependentsRows.Close()
+
+	dependents, err := scanIssues(dependentsRows)
+	if err != nil {
+		return nil, fmt.Errorf("scanning dependents: %w", err)
+	}
+
+	return &DependencyEdges{
+		Blockers:   blockers,
+		Dependents: dependents,
+	}, nil
+}
+
 // AddDependency adds a dependency
 func (s *StorageImpl) AddDependency(childID, parentID string) error {
 	_, err := s.db.Exec("INSERT INTO dependencies (child_id, parent_id) VALUES (?, ?)", childID, parentID)
@@ -225,26 +300,7 @@ func (s *StorageImpl) GetReadyIssues() ([]types.Issue, error) {
 	}
 	defer rows.Close()
 
-	var issues []types.Issue
-	for rows.Next() {
-		var issue types.Issue
-		var createdAtStr, updatedAtStr string
-		if err := rows.Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
-			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr); err != nil {
-			return nil, err
-		}
-		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
-			issue.CreatedAt = t
-		}
-		if t, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
-			issue.UpdatedAt = t
-		}
-		issues = append(issues, issue)
-	}
-	if err = rows.Err(); err != nil {
-		return issues, err
-	}
-	return issues, nil
+	return scanIssues(rows)
 }
 
 // Close closes the database connection

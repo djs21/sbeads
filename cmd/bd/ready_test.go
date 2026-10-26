@@ -38,11 +38,13 @@ func TestReadyCommand(t *testing.T) {
 			t.Fatalf("unexpected error running ready: %v", err)
 		}
 
-		if !strings.Contains(readyOut, id1+": Issue Alpha") {
-			t.Errorf("expected %s: Issue Alpha in ready list, got: %s", id1, readyOut)
+		expected1 := id1 + " [OPEN] (P1/task) Issue Alpha"
+		if !strings.Contains(readyOut, expected1) {
+			t.Errorf("expected %q in ready list, got: %s", expected1, readyOut)
 		}
-		if !strings.Contains(readyOut, id2+": Issue Beta") {
-			t.Errorf("expected %s: Issue Beta in ready list, got: %s", id2, readyOut)
+		expected2 := id2 + " [OPEN] (P2/task) Issue Beta"
+		if !strings.Contains(readyOut, expected2) {
+			t.Errorf("expected %q in ready list, got: %s", expected2, readyOut)
 		}
 	})
 

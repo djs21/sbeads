@@ -69,3 +69,13 @@ func (s *ServiceDomain) AddDependency(childID, parentID string) error {
 func (s *ServiceDomain) GetDependencies(issueID string) ([]string, error) {
 	return s.dependency.GetDependencies(issueID)
 }
+
+// GetDependents returns child issue IDs that depend on parentID
+func (s *ServiceDomain) GetDependents(parentID string) ([]string, error) {
+	return s.dependency.GetDependents(parentID)
+}
+
+// GetDependencyEdges returns blockers and dependents for an issue
+func (s *ServiceDomain) GetDependencyEdges(issueID string) (*backend.DependencyEdges, error) {
+	return s.dependency.GetDependencyEdges(issueID)
+}
