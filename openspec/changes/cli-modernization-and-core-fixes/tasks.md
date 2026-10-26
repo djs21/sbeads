@@ -1,15 +1,15 @@
 ## 1. Storage & Query Engine (Ready Filter & Dependencies)
 
-- [ ] 1.1 Implement `GetReadyIssues()` in `backend/storage.go` executing single SQL query filtering `is_closed = 0 AND is_claimed = 0 AND is_blocked = 0 AND NOT EXISTS (SELECT 1 FROM dependencies d JOIN issues p ON d.parent_id = p.id WHERE d.child_id = issues.id AND p.is_closed = 0)`.
-- [ ] 1.2 Implement short ID and prefix lookup in `backend/storage.go` (`GetIssue` matching exact ID or prefix match e.g. `sbeads-xxx` or `xxx`).
-- [ ] 1.3 Add index `idx_dependencies_parent_id` on `dependencies(parent_id)` and `idx_issues_status` on `issues(is_closed, is_claimed, is_blocked)`.
-- [ ] 1.4 Write comprehensive TDD unit tests in `backend/storage_test.go` covering closed filtering, claimed filtering, blocked filtering, dependency tree resolution, and prefix lookup.
+- [x] 1.1 Implement `GetReadyIssues()` in `backend/storage.go` executing single SQL query filtering `is_closed = 0 AND is_claimed = 0 AND is_blocked = 0 AND NOT EXISTS (SELECT 1 FROM dependencies d JOIN issues p ON d.parent_id = p.id WHERE d.child_id = issues.id AND p.is_closed = 0)`.
+- [x] 1.2 Implement short ID and prefix lookup in `backend/storage.go` (`GetIssue` matching exact ID or prefix match e.g. `sbeads-xxx` or `xxx`).
+- [x] 1.3 Add index `idx_dependencies_parent_id` on `dependencies(parent_id)` and `idx_issues_status` on `issues(is_closed, is_claimed, is_blocked)`.
+- [x] 1.4 Write comprehensive TDD unit tests in `backend/storage_test.go` covering closed filtering, claimed filtering, blocked filtering, dependency tree resolution, and prefix lookup.
 
 ## 2. Domain Service Logic & State Verification
 
-- [ ] 2.1 Update `internal/domain/issue.go` `ReadyIssues()` to invoke storage `GetReadyIssues()`.
-- [ ] 2.2 Ensure `ClaimIssue` and `CloseIssue` properly update timestamps and validate state transitions.
-- [ ] 2.3 Add domain-level unit tests in `internal/domain/issue_test.go` verifying ready issue resolution against test databases.
+- [x] 2.1 Update `internal/domain/issue.go` `ReadyIssues()` to invoke storage `GetReadyIssues()`.
+- [x] 2.2 Ensure `ClaimIssue` and `CloseIssue` properly update timestamps and validate state transitions.
+- [x] 2.3 Add domain-level unit tests in `internal/domain/issue_test.go` verifying ready issue resolution against test databases.
 
 ## 3. Types & Short ID Generator (Base36 + Collision Retry)
 

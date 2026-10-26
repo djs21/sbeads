@@ -210,3 +210,78 @@ func TestIssueDomain_ReadyIssues(t *testing.T) {
 		t.Errorf("expected %d issues, got %d", initialCount+1, len(issues))
 	}
 }
+
+func TestIssueDomain_ReadyIssuesFiltersAndDependencies(t *testing.T) {
+	storage := setupTestStorage(t)
+	domain := NewIssueDomain(storage)
+
+	parent := &types.Issue{
+		ID:        "parent-task",
+		Title:     "Parent Task",
+		IssueType: "task",
+		Priority:  3,
+	}
+	child := &types.Issue{
+		ID:        "child-task",
+		Title:     "Child Task",
+		IssueType: "task",
+		Priority:  2,
+	}
+	claimed := &types.Issue{
+		ID:        "claimed-task",
+		Title:     "Claimed Task",
+		IssueType: "task",
+		Priority:  1,
+	}
+	blocked := &types.Issue{
+		ID:        "blocked-task",
+		Title:     "Blocked Task",
+		IssueType: "task",
+		Priority:  1,
+		IsBlocked: 1,
+	}
+
+	for _, iss := range []*types.Issue{parent, child, claimed, blocked} {
+		if _, err := domain.CreateIssue(iss); err != nil {
+			t.Fatalf("failed to create issue %s: %v", iss.ID, err)
+		}
+	}
+
+	if err := storage.AddDependency(child.ID, parent.ID); err != nil {
+		t.Fatalf("AddDependency failed: %v", err)
+	}
+
+	if _, err := domain.ClaimIssue(claimed.ID, "user1", "agent1"); err != nil {
+		t.Fatalf("ClaimIssue failed: %v", err)
+	}
+
+	// Currently: parent is open, child depends on parent, claimed is claimed, blocked is blocked.
+	// Only parent should be ready.
+	ready, err := domain.ReadyIssues()
+	if err != nil {
+		t.Fatalf("ReadyIssues failed: %v", err)
+	}
+	if len(ready) != 1 {
+		t.Fatalf("expected 1 ready issue (parent), got %d", len(ready))
+	}
+	if ready[0].ID != parent.ID {
+		t.Fatalf("expected ready issue to be %s, got %s", parent.ID, ready[0].ID)
+	}
+
+	// Close parent
+	if _, err := domain.CloseIssue(parent.ID); err != nil {
+		t.Fatalf("CloseIssue failed: %v", err)
+	}
+
+	// Now: parent is closed -> child should now be ready!
+	readyAfter, err := domain.ReadyIssues()
+	if err != nil {
+		t.Fatalf("ReadyIssues after close failed: %v", err)
+	}
+	if len(readyAfter) != 1 {
+		t.Fatalf("expected 1 ready issue (child), got %d", len(readyAfter))
+	}
+	if readyAfter[0].ID != child.ID {
+		t.Fatalf("expected ready issue to be %s, got %s", child.ID, readyAfter[0].ID)
+	}
+}

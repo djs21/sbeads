@@ -65,13 +65,9 @@ func (d *IssueDomain) CloseIssue(id string) (*types.Issue, error) {
 	return issue, nil
 }
 
-// ReadyIssues lists all unblocked issues
+// ReadyIssues lists all actionable ready issues (unblocked, unclaimed, unclosed, and dependencies resolved)
 func (d *IssueDomain) ReadyIssues() ([]types.Issue, error) {
-	issues, err := d.storage.ListIssues()
-	if err != nil {
-		return nil, err
-	}
-	return issues, nil
+	return d.storage.GetReadyIssues()
 }
 
 // ClaimIssue claims an issue (sets assignee and in_progress)

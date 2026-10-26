@@ -19,6 +19,7 @@ type Storage interface {
 	CloseIssue(id string) error
 	ClaimIssue(id, assignee, agent string) error
 	GetDependencies(issueID string) ([]string, error)
+	GetReadyIssues() ([]types.Issue, error)
 	AddDependency(childID, parentID string) error
 	Close() error
 }
@@ -55,17 +56,27 @@ func (s *StorageImpl) CreateIssue(issue *types.Issue) error {
 	return err
 }
 
-// GetIssue retrieves an issue by ID
+// GetIssue retrieves an issue by ID (exact match or prefix/short-ID match)
 func (s *StorageImpl) GetIssue(id string) (*types.Issue, error) {
 	var issue types.Issue
 	var createdAtStr, updatedAtStr string
-	err := s.db.QueryRow("SELECT title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at FROM issues WHERE id = ?",
-		id).Scan(&issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
+
+	// 1. Exact match
+	query := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at FROM issues WHERE id = ?"
+	err := s.db.QueryRow(query, id).Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
 		&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &createdAtStr, &updatedAtStr)
+
+	// 2. Fallback to short hash or prefix match (e.g. sbeads-<id>, or <id>%)
+	if err == sql.ErrNoRows {
+		queryFallback := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at FROM issues WHERE id LIKE ? OR id LIKE ? ORDER BY length(id) ASC LIMIT 1"
+		err = s.db.QueryRow(queryFallback, "%-"+id, id+"%").Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
+			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &createdAtStr, &updatedAtStr)
+	}
+
 	if err != nil {
 		return nil, err
 	}
-	issue.ID = id
+
 	if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
 		issue.CreatedAt = t
 	}
@@ -145,6 +156,49 @@ func (s *StorageImpl) AddDependency(childID, parentID string) error {
 	return err
 }
 
+// GetReadyIssues returns ready issues that are open, unclaimed, unblocked,
+// and have no unclosed parent dependencies.
+func (s *StorageImpl) GetReadyIssues() ([]types.Issue, error) {
+	query := `SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at
+	FROM issues
+	WHERE is_closed = 0
+	  AND is_claimed = 0
+	  AND is_blocked = 0
+	  AND NOT EXISTS (
+		SELECT 1 FROM dependencies d
+		JOIN issues p ON d.parent_id = p.id
+		WHERE d.child_id = issues.id AND p.is_closed = 0
+	  )
+	ORDER BY priority DESC, created_at ASC`
+
+	rows, err := s.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var issues []types.Issue
+	for rows.Next() {
+		var issue types.Issue
+		var createdAtStr, updatedAtStr string
+		if err := rows.Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
+			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &createdAtStr, &updatedAtStr); err != nil {
+			return nil, err
+		}
+		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+			issue.CreatedAt = t
+		}
+		if t, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
+			issue.UpdatedAt = t
+		}
+		issues = append(issues, issue)
+	}
+	if err = rows.Err(); err != nil {
+		return issues, err
+	}
+	return issues, nil
+}
+
 // Close closes the database connection
 func (s *StorageImpl) Close() error {
 	return s.db.Close()
@@ -177,7 +231,9 @@ func CreateTables(path string) error {
 		child_id TEXT NOT NULL,
 		parent_id TEXT NOT NULL,
 		PRIMARY KEY (child_id, parent_id)
-	);`
+	);
+	CREATE INDEX IF NOT EXISTS idx_dependencies_parent ON dependencies(parent_id);
+	CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(is_closed, is_claimed, is_blocked);`
 	_, err = db.Exec(schema)
 	return err
 }
