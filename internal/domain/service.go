@@ -55,6 +55,11 @@ func (s *ServiceDomain) Claim(id string, assignee string, agent string) (*types.
 	return s.issue.ClaimIssue(id, assignee, agent)
 }
 
+// Unclaim releases a claimed issue
+func (s *ServiceDomain) Unclaim(id string) (*types.Issue, error) {
+	return s.issue.Unclaim(id)
+}
+
 // AddDependency adds a dependency
 func (s *ServiceDomain) AddDependency(childID, parentID string) error {
 	return s.dependency.AddDependency(childID, parentID)

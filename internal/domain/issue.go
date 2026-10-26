@@ -1,10 +1,11 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
-	"sbeads/internal/types"
 	"sbeads/backend"
+	"sbeads/internal/types"
 )
 
 // IssueDomain handles issue business logic
@@ -89,6 +90,29 @@ func (d *IssueDomain) ClaimIssue(id, assignee string, agent string) (*types.Issu
 	}
 
 	issue.IsClaimed = 1
+	issue.UpdatedAt = time.Now()
+	return issue, nil
+}
+
+// Unclaim releases a claimed issue
+func (d *IssueDomain) Unclaim(id string) (*types.Issue, error) {
+	if strings.TrimSpace(id) == "" {
+		return nil, ErrEmptyID
+	}
+	issue, err := d.storage.GetIssue(id)
+	if err != nil {
+		return nil, err
+	}
+	if issue.IsClaimed == 0 {
+		return nil, ErrNotClaimed
+	}
+	if err := d.storage.UnclaimIssue(issue.ID); err != nil {
+		return nil, err
+	}
+	issue.IsClaimed = 0
+	issue.IsBlocked = 0
+	issue.Agent = ""
+	issue.Assignee = ""
 	issue.UpdatedAt = time.Now()
 	return issue, nil
 }
