@@ -3,6 +3,7 @@
 /sbeads
 
 # SQLite databases
+.sbeads
 .sbeads/
 .sbeads*
 *.db
