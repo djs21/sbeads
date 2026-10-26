@@ -19,7 +19,10 @@ type Storage interface {
 	ListIssues() ([]types.Issue, error)
 	CloseIssue(id string) error
 	ClaimIssue(id, assignee, agent string) error
+	UnclaimIssue(id string) error
 	GetDependencies(issueID string) ([]string, error)
+	GetDependents(parentID string) ([]string, error)
+	GetDependencyEdges(issueID string) (*DependencyEdges, error)
 	GetReadyIssues() ([]types.Issue, error)
 	AddDependency(childID, parentID string) error
 	Close() error
@@ -55,9 +58,9 @@ func (s *StorageImpl) CreateIssue(issue *types.Issue) error {
 	const maxRetries = 5
 	var err error
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		_, err = s.db.Exec("INSERT INTO issues (id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		_, err = s.db.Exec("INSERT INTO issues (id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			issue.ID, issue.Title, issue.IssueType, issue.Priority, issue.Description,
-			issue.IsBlocked, issue.IsClosed, issue.IsClaimed, issue.CreatedAt.Format(time.RFC3339), issue.UpdatedAt.Format(time.RFC3339))
+			issue.IsBlocked, issue.IsClosed, issue.IsClaimed, issue.Agent, issue.Assignee, issue.CreatedAt.Format(time.RFC3339), issue.UpdatedAt.Format(time.RFC3339))
 		if err == nil {
 			return nil
 		}
@@ -78,15 +81,15 @@ func (s *StorageImpl) GetIssue(id string) (*types.Issue, error) {
 	var createdAtStr, updatedAtStr string
 
 	// 1. Exact match
-	query := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at FROM issues WHERE id = ?"
+	query := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at FROM issues WHERE id = ?"
 	err := s.db.QueryRow(query, id).Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
-		&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &createdAtStr, &updatedAtStr)
+		&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr)
 
 	// 2. Fallback to short hash or prefix match (e.g. sbeads-<id>, or <id>%)
 	if err == sql.ErrNoRows {
-		queryFallback := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at FROM issues WHERE id LIKE ? OR id LIKE ? ORDER BY length(id) ASC LIMIT 1"
+		queryFallback := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at FROM issues WHERE id LIKE ? OR id LIKE ? ORDER BY length(id) ASC LIMIT 1"
 		err = s.db.QueryRow(queryFallback, "%-"+id, id+"%").Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
-			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &createdAtStr, &updatedAtStr)
+			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr)
 	}
 
 	if err != nil {
@@ -102,19 +105,19 @@ func (s *StorageImpl) GetIssue(id string) (*types.Issue, error) {
 	return &issue, nil
 }
 
-// ListIssues returns all issues
-func (s *StorageImpl) ListIssues() ([]types.Issue, error) {
+// DependencyEdges holds the parent blockers and child dependents for an issue
+type DependencyEdges struct {
+	Blockers   []types.Issue
+	Dependents []types.Issue
+}
+
+func scanIssues(rows *sql.Rows) ([]types.Issue, error) {
 	var issues []types.Issue
-	rows, err := s.db.Query("SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at FROM issues")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	for rows.Next() {
 		var issue types.Issue
 		var createdAtStr, updatedAtStr string
 		if err := rows.Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
-			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &createdAtStr, &updatedAtStr); err != nil {
+			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr); err != nil {
 			return nil, err
 		}
 		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
@@ -125,10 +128,20 @@ func (s *StorageImpl) ListIssues() ([]types.Issue, error) {
 		}
 		issues = append(issues, issue)
 	}
-	if err = rows.Err(); err != nil {
+	if err := rows.Err(); err != nil {
 		return issues, err
 	}
 	return issues, nil
+}
+
+// ListIssues returns all issues
+func (s *StorageImpl) ListIssues() ([]types.Issue, error) {
+	rows, err := s.db.Query("SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at FROM issues ORDER BY created_at DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanIssues(rows)
 }
 
 // CloseIssue marks an issue as closed
@@ -140,9 +153,40 @@ func (s *StorageImpl) CloseIssue(id string) error {
 
 // ClaimIssue claims an issue for an agent
 func (s *StorageImpl) ClaimIssue(id, assignee, agent string) error {
-	_, err := s.db.Exec("UPDATE issues SET is_claimed = 1, is_blocked = 1, updated_at = ? WHERE id = ?",
+	res, err := s.db.Exec("UPDATE issues SET is_claimed = 1, agent = ?, assignee = ?, updated_at = ? WHERE id = ?",
+		agent, assignee, time.Now().Format(time.RFC3339), id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("issue not found: %s", id)
+	}
+	return nil
+}
+
+// UnclaimIssue releases a claimed issue back to unclaimed state
+func (s *StorageImpl) UnclaimIssue(id string) error {
+	res, err := s.db.Exec("UPDATE issues SET is_claimed = 0, agent = '', assignee = '', updated_at = ? WHERE id = ? AND is_claimed = 1",
 		time.Now().Format(time.RFC3339), id)
-	return err
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		var count int
+		if err := s.db.QueryRow("SELECT COUNT(1) FROM issues WHERE id = ?", id).Scan(&count); err == nil && count == 0 {
+			return fmt.Errorf("issue not found: %s", id)
+		}
+		return fmt.Errorf("issue %s is not claimed", id)
+	}
+	return nil
 }
 
 // GetDependencies returns all dependencies for an issue
@@ -166,6 +210,69 @@ func (s *StorageImpl) GetDependencies(issueID string) ([]string, error) {
 	return deps, nil
 }
 
+// GetDependents returns all child issue IDs that depend on the given parentID
+func (s *StorageImpl) GetDependents(parentID string) ([]string, error) {
+	var dependents []string
+	rows, err := s.db.Query("SELECT child_id FROM dependencies WHERE parent_id = ? ORDER BY child_id ASC", parentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var childID string
+		if err := rows.Scan(&childID); err != nil {
+			return nil, err
+		}
+		dependents = append(dependents, childID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return dependents, nil
+}
+
+// GetDependencyEdges returns the blockers (parents) and dependents (children) for an issue
+func (s *StorageImpl) GetDependencyEdges(issueID string) (*DependencyEdges, error) {
+	blockersQuery := `SELECT p.id, p.title, p.issue_type, p.priority, p.description, p.is_blocked, p.is_closed, p.is_claimed, p.agent, p.assignee, p.created_at, p.updated_at
+FROM issues p
+JOIN dependencies d ON d.parent_id = p.id
+WHERE d.child_id = ?
+ORDER BY p.priority DESC, p.created_at ASC`
+
+	blockersRows, err := s.db.Query(blockersQuery, issueID)
+	if err != nil {
+		return nil, fmt.Errorf("querying blockers: %w", err)
+	}
+	defer blockersRows.Close()
+
+	blockers, err := scanIssues(blockersRows)
+	if err != nil {
+		return nil, fmt.Errorf("scanning blockers: %w", err)
+	}
+
+	dependentsQuery := `SELECT c.id, c.title, c.issue_type, c.priority, c.description, c.is_blocked, c.is_closed, c.is_claimed, c.agent, c.assignee, c.created_at, c.updated_at
+FROM issues c
+JOIN dependencies d ON d.child_id = c.id
+WHERE d.parent_id = ?
+ORDER BY c.priority DESC, c.created_at ASC`
+
+	dependentsRows, err := s.db.Query(dependentsQuery, issueID)
+	if err != nil {
+		return nil, fmt.Errorf("querying dependents: %w", err)
+	}
+	defer dependentsRows.Close()
+
+	dependents, err := scanIssues(dependentsRows)
+	if err != nil {
+		return nil, fmt.Errorf("scanning dependents: %w", err)
+	}
+
+	return &DependencyEdges{
+		Blockers:   blockers,
+		Dependents: dependents,
+	}, nil
+}
+
 // AddDependency adds a dependency
 func (s *StorageImpl) AddDependency(childID, parentID string) error {
 	_, err := s.db.Exec("INSERT INTO dependencies (child_id, parent_id) VALUES (?, ?)", childID, parentID)
@@ -175,7 +282,7 @@ func (s *StorageImpl) AddDependency(childID, parentID string) error {
 // GetReadyIssues returns ready issues that are open, unclaimed, unblocked,
 // and have no unclosed parent dependencies.
 func (s *StorageImpl) GetReadyIssues() ([]types.Issue, error) {
-	query := `SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at
+	query := `SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at
 	FROM issues
 	WHERE is_closed = 0
 	  AND is_claimed = 0
@@ -193,26 +300,7 @@ func (s *StorageImpl) GetReadyIssues() ([]types.Issue, error) {
 	}
 	defer rows.Close()
 
-	var issues []types.Issue
-	for rows.Next() {
-		var issue types.Issue
-		var createdAtStr, updatedAtStr string
-		if err := rows.Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
-			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &createdAtStr, &updatedAtStr); err != nil {
-			return nil, err
-		}
-		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
-			issue.CreatedAt = t
-		}
-		if t, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
-			issue.UpdatedAt = t
-		}
-		issues = append(issues, issue)
-	}
-	if err = rows.Err(); err != nil {
-		return issues, err
-	}
-	return issues, nil
+	return scanIssues(rows)
 }
 
 // Close closes the database connection
@@ -240,6 +328,8 @@ func CreateTables(path string) error {
 		is_blocked INTEGER DEFAULT 0,
 		is_closed INTEGER DEFAULT 0,
 		is_claimed INTEGER DEFAULT 0,
+		agent TEXT DEFAULT '',
+		assignee TEXT DEFAULT '',
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL
 	);
@@ -250,6 +340,12 @@ func CreateTables(path string) error {
 	);
 	CREATE INDEX IF NOT EXISTS idx_dependencies_parent ON dependencies(parent_id);
 	CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(is_closed, is_claimed, is_blocked);`
-	_, err = db.Exec(schema)
-	return err
+	if _, err := db.Exec(schema); err != nil {
+		return err
+	}
+
+	// Idempotent column migrations for existing tables
+	_, _ = db.Exec("ALTER TABLE issues ADD COLUMN agent TEXT DEFAULT '';")
+	_, _ = db.Exec("ALTER TABLE issues ADD COLUMN assignee TEXT DEFAULT '';")
+	return nil
 }

@@ -48,6 +48,16 @@ func (d *DependencyDomain) GetDependencies(issueID string) ([]string, error) {
 	return d.storage.GetDependencies(issueID)
 }
 
+// GetDependents gets all child issue IDs that depend on the given parentID
+func (d *DependencyDomain) GetDependents(parentID string) ([]string, error) {
+	return d.storage.GetDependents(parentID)
+}
+
+// GetDependencyEdges returns the blockers and dependents for an issue
+func (d *DependencyDomain) GetDependencyEdges(issueID string) (*backend.DependencyEdges, error) {
+	return d.storage.GetDependencyEdges(issueID)
+}
+
 // HasDependency checks if an issue has a dependency on another
 func (d *DependencyDomain) HasDependency(childID, parentID string) (bool, error) {
 	deps, err := d.GetDependencies(childID)

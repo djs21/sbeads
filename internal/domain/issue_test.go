@@ -285,3 +285,78 @@ func TestIssueDomain_ReadyIssuesFiltersAndDependencies(t *testing.T) {
 		t.Fatalf("expected ready issue to be %s, got %s", child.ID, readyAfter[0].ID)
 	}
 }
+
+func TestIssueDomain_UnclaimIssue(t *testing.T) {
+	storage := setupTestStorage(t)
+	domain := NewIssueDomain(storage)
+
+	issue := &types.Issue{
+		ID:        "issue-to-unclaim",
+		Title:     "To Unclaim",
+		IssueType: "task",
+		Priority:  1,
+	}
+	if _, err := domain.CreateIssue(issue); err != nil {
+		t.Fatalf("failed to create issue: %v", err)
+	}
+
+	t.Run("Error when unclaiming unclaimed issue", func(t *testing.T) {
+		_, err := domain.Unclaim(issue.ID)
+		if err == nil {
+			t.Fatal("expected error unclaiming unclaimed issue, got nil")
+		}
+		if err != ErrNotClaimed {
+			t.Fatalf("expected ErrNotClaimed, got %v", err)
+		}
+	})
+
+	t.Run("Error unclaiming non-existent issue", func(t *testing.T) {
+		_, err := domain.Unclaim("non-existent-id")
+		if err == nil {
+			t.Fatal("expected error unclaiming non-existent issue, got nil")
+		}
+	})
+
+	t.Run("Error unclaiming empty ID", func(t *testing.T) {
+		_, err := domain.Unclaim("")
+		if err == nil {
+			t.Fatal("expected error unclaiming empty id, got nil")
+		}
+	})
+
+	t.Run("Successfully unclaim claimed issue", func(t *testing.T) {
+		claimed, err := domain.ClaimIssue(issue.ID, "user1", "agent1")
+		if err != nil {
+			t.Fatalf("ClaimIssue failed: %v", err)
+		}
+		if claimed.IsClaimed != 1 {
+			t.Fatalf("expected claimed, got IsClaimed=%d", claimed.IsClaimed)
+		}
+
+		unclaimed, err := domain.Unclaim(issue.ID)
+		if err != nil {
+			t.Fatalf("unexpected error unclaiming issue: %v", err)
+		}
+		if unclaimed.IsClaimed != 0 {
+			t.Errorf("expected IsClaimed=0, got %d", unclaimed.IsClaimed)
+		}
+		if unclaimed.IsBlocked != 0 {
+			t.Errorf("expected IsBlocked=0, got %d", unclaimed.IsBlocked)
+		}
+		if unclaimed.Agent != "" {
+			t.Errorf("expected empty agent, got %q", unclaimed.Agent)
+		}
+		if unclaimed.Assignee != "" {
+			t.Errorf("expected empty assignee, got %q", unclaimed.Assignee)
+		}
+
+		// Verify in storage
+		stored, err := storage.GetIssue(issue.ID)
+		if err != nil {
+			t.Fatalf("GetIssue from storage failed: %v", err)
+		}
+		if stored.IsClaimed != 0 || stored.IsBlocked != 0 || stored.Agent != "" || stored.Assignee != "" {
+			t.Errorf("stored issue fields not reset properly: %+v", stored)
+		}
+	})
+}

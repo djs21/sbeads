@@ -87,4 +87,30 @@ func TestDependencyDomain(t *testing.T) {
 			t.Fatalf("unexpected error in RemoveDependency: %v", err)
 		}
 	})
+
+	t.Run("GetDependents and GetDependencyEdges", func(t *testing.T) {
+		childID := "child-edges-1"
+		parentID := "parent-edges-1"
+		_ = storage.CreateIssue(&types.Issue{ID: childID, Title: "Child", Priority: 1})
+		_ = storage.CreateIssue(&types.Issue{ID: parentID, Title: "Parent", Priority: 2})
+		if err := depDomain.AddDependency(childID, parentID); err != nil {
+			t.Fatalf("AddDependency failed: %v", err)
+		}
+
+		dependents, err := depDomain.GetDependents(parentID)
+		if err != nil {
+			t.Fatalf("GetDependents failed: %v", err)
+		}
+		if len(dependents) != 1 || dependents[0] != childID {
+			t.Errorf("expected dependents [%s], got %v", childID, dependents)
+		}
+
+		edges, err := depDomain.GetDependencyEdges(childID)
+		if err != nil {
+			t.Fatalf("GetDependencyEdges failed: %v", err)
+		}
+		if len(edges.Blockers) != 1 || edges.Blockers[0].ID != parentID {
+			t.Errorf("expected blocker %s, got %v", parentID, edges.Blockers)
+		}
+	})
 }

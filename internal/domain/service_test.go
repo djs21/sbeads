@@ -57,6 +57,16 @@ func TestServiceDomain(t *testing.T) {
 		}
 	})
 
+	t.Run("Unclaim issue", func(t *testing.T) {
+		unclaimed, err := svc.Unclaim(issue1ID)
+		if err != nil {
+			t.Fatalf("Unclaim failed: %v", err)
+		}
+		if unclaimed.IsClaimed != 0 || unclaimed.Agent != "" || unclaimed.Assignee != "" {
+			t.Errorf("expected unclaimed issue, got %+v", unclaimed)
+		}
+	})
+
 	t.Run("AddDependency and GetDependencies", func(t *testing.T) {
 		err := svc.AddDependency(issue1ID, issue2ID)
 		if err != nil {

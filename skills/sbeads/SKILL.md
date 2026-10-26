@@ -58,11 +58,12 @@ Agents must strictly follow the lifecycle state machine:
 [Ready Queue] (sbeads ready)
       │
       ▼
-[Claim Issue] (sbeads claim --agent <name>)
+[Claim Issue] (sbeads claim <id> --agent <name>)
       │  └─ If already claimed: Pick another ready issue
       ▼
 [Execute Task]
       │
+      ├── (if failed/aborted) ──> [Unclaim Issue] (sbeads unclaim <id>) ──> [Ready Queue]
       ▼
 [Close Issue] (sbeads close <id>)
       │
@@ -70,10 +71,24 @@ Agents must strictly follow the lifecycle state machine:
 [Check Next Ready] (sbeads ready)
 ```
 
+### Status Badge Lifecycle & Observability
+
+`sbeads` outputs standardized badges for instant state evaluation:
+
+| Badge | Status | Description | Action for LLM / Subagent |
+|---|---|---|---|
+| `[O]` | `OPEN` | Ready to be worked on; no unclosed parent dependencies. | Candidate to claim with `sbeads claim <id> --agent <name>`. |
+| `[C]` | `CLAIMED` | Actively claimed by an agent or assignee (`[@agent]`). | Do not touch unless assigned to you. |
+| `[B]` | `BLOCKED` | Blocked explicitly or waiting on unclosed parent tasks. | Do not attempt to claim; inspect blockers with `sbeads show <id>`. |
+| `[X]` | `CLOSED` | Resolved / completed. | Finished work. |
+| `[EPIC]` | *(type)* | Marker identifying a parent epic issue. | Inspect subtasks with `sbeads list --tree`. |
+
 ### Core Invariants
 1. **Always Claim Before Execution**: Run `sbeads claim <id> --agent <agent-id>` before modifying code or performing work. If claiming fails, do not proceed.
-2. **Atomic Completion**: Only run `sbeads close <id>` after tests, linting, or verification pass.
-3. **Dependencies Block Ready State**: When Task B depends on Task A (`dep add <TaskB> <TaskA>`), Task B will not be worked on until Task A is resolved.
+2. **Context Inspection via Trees**: Before planning, run `sbeads list --tree` to understand parent epics and child subtask relationships.
+3. **Unclaim on Abort or Failure**: If you encounter a blocking uncertainty, failure, or need to yield work, run `sbeads unclaim <id>` so another agent or master can reassign it.
+4. **Atomic Completion**: Only run `sbeads close <id>` after tests, linting, or verification pass.
+5. **Dependencies Block Ready State**: When Task B depends on Task A (`dep add <TaskB> <TaskA>`), Task B will not appear in `sbeads ready` until Task A is closed.
 
 ---
 
@@ -99,42 +114,79 @@ echo "New issue: $ISSUE_ID"
 
 ### 2. Checking Ready Issues
 ```bash
-# List ready issues
+# List ready issues (outputs one-liner format with status badges)
 sbeads ready
 
 # Example output:
-# sbeads-k7a: Draft API specification
-# sbeads-4z9: Implement user session timeout
+# sbeads-k7a [OPEN] (P2/task) Draft API specification
+# sbeads-3qt [OPEN] [EPIC] (P1/epic) Epic: Coordination Architecture
+# sbeads-4z9 [OPEN] (P3/bug) Fix memory leak in buffer pool
 
-# Scriptable: Get first ready issue ID
-FIRST_READY=$(sbeads ready | grep -E '^[a-z0-9_-]+-[0-9a-z]{3}:' | head -n 1 | cut -d: -f1)
+# Scriptable: Get first ready issue ID (extracts the ID before space or badge)
+FIRST_READY=$(sbeads ready | awk '{print $1}' | head -n 1)
 ```
 
-### 3. Claiming an Issue
+### 3. Inspecting Project Hierarchy & Lists
 ```bash
-# Claim by issue ID with agent identity
+# Inspect full hierarchical dependency tree (child tasks indented under parents/epics)
+sbeads list --tree
+
+# List all open (unclosed) issues (default)
+sbeads list
+
+# List all issues including closed
+sbeads list -a
+
+# Filter only blocked issues
+sbeads list --blocked
+
+# Filter only closed issues
+sbeads list --closed
+
+# Machine-readable JSON output for automated scripting
+sbeads list --json
+```
+
+### 4. Claiming an Issue
+```bash
+# Positional claim with agent identifier (preferred)
+sbeads claim "$ISSUE_ID" --agent "worker-agent"
+
+# Claim with explicit flag
 sbeads claim --issue-id "$ISSUE_ID" --agent "worker-agent"
 
-# Positional claim
-sbeads claim "$ISSUE_ID" --agent "worker-agent"
+# Claim with assignee
+sbeads claim "$ISSUE_ID" --agent "worker-agent" --assignee "djs"
 ```
 
-### 4. Inspecting Issue Details
+### 5. Unclaiming an Issue (Aborting / Releasing)
+```bash
+# Release claim so another agent or developer can pick it up
+sbeads unclaim "$ISSUE_ID"
+
+# Flag-based
+sbeads unclaim --issue-id "$ISSUE_ID"
+```
+
+### 6. Inspecting Issue Details
 ```bash
 sbeads show "$ISSUE_ID"
 
-# Parse fields from output:
-# Issue: issue-...
-# Title: ...
-# Type: ...
-# Priority: ...
+# Output format:
+# Issue: sbeads-k7a
+# Title: Draft API specification
+# Type: task
+# Priority: 2
+# Status: OPEN [O]
+# Agent: @worker-agent
 # Description: ...
-# Blocked: 0|1
-# Closed: 0|1
-# Claimed: 0|1
+# Blocked by:
+#   sbeads-3qt: Epic: Coordination Architecture
+# Blocks:
+#   sbeads-b8x: Deploy service
 ```
 
-### 5. Managing Dependencies
+### 7. Managing Dependencies
 ```bash
 # Add dependency: child depends on parent
 # child cannot start until parent finishes
@@ -149,7 +201,7 @@ sbeads dep list "$CHILD_ISSUE_ID"
 sbeads dep remove "$CHILD_ISSUE_ID" "$PARENT_ISSUE_ID"
 ```
 
-### 6. Closing Completed Issues
+### 8. Closing Completed Issues
 ```bash
 sbeads close "$ISSUE_ID"
 ```
@@ -173,18 +225,17 @@ Prefix lookup is supported: you can query using exact ID `sbeads-abc` or short h
 
 - From `sbeads ready`:
   ```bash
-  # Output: issue-4df45e43f1145ee2dfef2ec6c367adbf: Title
-  ID=$(echo "$LINE" | cut -d: -f1)
-  TITLE=$(echo "$LINE" | cut -d: -f2- | sed 's/^ //')
+  # Output: sbeads-k7a [OPEN] (P2/task) Draft API specification
+  ID=$(echo "$LINE" | awk '{print $1}')
+  STATUS=$(echo "$LINE" | awk '{print $2}')
   ```
 
 - From `sbeads show`:
   ```bash
   # Key-Value format:
   TITLE=$(echo "$SHOW_OUTPUT" | awk -F': ' '$1=="Title" {print $2}')
-  BLOCKED=$(echo "$SHOW_OUTPUT" | awk -F': ' '$1=="Blocked" {print $2}')
-  CLAIMED=$(echo "$SHOW_OUTPUT" | awk -F': ' '$1=="Claimed" {print $2}')
-  CLOSED=$(echo "$SHOW_OUTPUT" | awk -F': ' '$1=="Closed" {print $2}')
+  STATUS=$(echo "$SHOW_OUTPUT" | awk -F': ' '$1=="Status" {print $2}')
+  AGENT=$(echo "$SHOW_OUTPUT" | awk -F': ' '$1=="Agent" {print $2}')
   ```
 
 ---
@@ -243,4 +294,4 @@ sbeads dep add "$VERIFY" "$TASK_B"
 
 1. **Leverage WAL Mode**: SQLite runs in WAL mode with low contention. Short CLI calls ensure lock hold times are milliseconds.
 2. **Check-Then-Claim Is Atomic in Storage**: `sbeads claim` updates both `is_claimed = 1` and `is_blocked = 1` within an atomic transaction. If the command succeeds (exit code 0), your agent exclusively owns the task.
-3. **Tear-Down Hygiene**: If an agent aborts or fails a task, keep state clean. If work was not finished, unclaim or document progress in issue description or logs before terminating.
+3. **Tear-Down & Abort Hygiene**: If an agent aborts, encounters an unresolvable blocker, or fails a task, release it immediately using `sbeads unclaim <id>` so the issue reverts to open status and other swarm workers can claim it.

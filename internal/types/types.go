@@ -20,6 +20,8 @@ type Issue struct {
 	IsBlocked   int
 	IsClosed    int
 	IsClaimed   int
+	Agent       string
+	Assignee    string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

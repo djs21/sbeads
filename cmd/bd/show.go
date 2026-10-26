@@ -3,8 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
+	"sbeads/internal/domain"
+	"sbeads/internal/types"
 )
 
 func NewShowCmd() *cobra.Command {
@@ -31,15 +34,60 @@ func NewShowCmd() *cobra.Command {
 				return fmt.Errorf("issue not found: %s", id)
 			}
 
+			edges, err := appCtx.Storage.GetDependencyEdges(issue.ID)
+			if err != nil {
+				return fmt.Errorf("fetching dependencies: %w", err)
+			}
+
+			var unclosedBlockers []types.Issue
+			for _, b := range edges.Blockers {
+				if b.IsClosed == 0 {
+					unclosedBlockers = append(unclosedBlockers, b)
+				}
+			}
+
+			status := domain.ComputeStatus(issue, len(unclosedBlockers) > 0)
+
 			out := cmd.OutOrStdout()
 			fmt.Fprintf(out, "Issue: %s\n", issue.ID)
 			fmt.Fprintf(out, "Title: %s\n", issue.Title)
 			fmt.Fprintf(out, "Type: %s\n", issue.IssueType)
 			fmt.Fprintf(out, "Priority: %d\n", issue.Priority)
+			fmt.Fprintf(out, "Status: %s %s\n", status, status.ShortBadge())
+
+			agent := issue.Agent
+			if agent == "" {
+				agent = issue.Assignee
+			}
+			if (issue.IsClaimed != 0 || agent != "") && agent != "" {
+				agent = strings.TrimPrefix(agent, "@")
+				fmt.Fprintf(out, "Agent: @%s\n", agent)
+			}
+
 			fmt.Fprintf(out, "Description: %s\n", issue.Description)
-			fmt.Fprintf(out, "Blocked: %v\n", issue.IsBlocked)
-			fmt.Fprintf(out, "Closed: %v\n", issue.IsClosed)
-			fmt.Fprintf(out, "Claimed: %v\n", issue.IsClaimed)
+
+			if len(unclosedBlockers) > 0 {
+				fmt.Fprintln(out, "Blocked by:")
+				for _, b := range unclosedBlockers {
+					if b.Title != "" {
+						fmt.Fprintf(out, "  %s: %s\n", b.ID, b.Title)
+					} else {
+						fmt.Fprintf(out, "  %s\n", b.ID)
+					}
+				}
+			}
+
+			if len(edges.Dependents) > 0 {
+				fmt.Fprintln(out, "Blocks:")
+				for _, d := range edges.Dependents {
+					if d.Title != "" {
+						fmt.Fprintf(out, "  %s: %s\n", d.ID, d.Title)
+					} else {
+						fmt.Fprintf(out, "  %s\n", d.ID)
+					}
+				}
+			}
+
 			return nil
 		},
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"sbeads/internal/domain"
 )
 
 func NewReadyCmd() *cobra.Command {
@@ -29,7 +30,7 @@ func NewReadyCmd() *cobra.Command {
 			}
 
 			for _, issue := range issues {
-				fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", issue.ID, issue.Title)
+				fmt.Fprintln(cmd.OutOrStdout(), domain.FormatOneLiner(&issue, domain.StatusOpen))
 			}
 			return nil
 		},

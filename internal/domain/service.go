@@ -55,6 +55,11 @@ func (s *ServiceDomain) Claim(id string, assignee string, agent string) (*types.
 	return s.issue.ClaimIssue(id, assignee, agent)
 }
 
+// Unclaim releases a claimed issue
+func (s *ServiceDomain) Unclaim(id string) (*types.Issue, error) {
+	return s.issue.Unclaim(id)
+}
+
 // AddDependency adds a dependency
 func (s *ServiceDomain) AddDependency(childID, parentID string) error {
 	return s.dependency.AddDependency(childID, parentID)
@@ -63,4 +68,14 @@ func (s *ServiceDomain) AddDependency(childID, parentID string) error {
 // GetDependencies returns dependencies for an issue
 func (s *ServiceDomain) GetDependencies(issueID string) ([]string, error) {
 	return s.dependency.GetDependencies(issueID)
+}
+
+// GetDependents returns child issue IDs that depend on parentID
+func (s *ServiceDomain) GetDependents(parentID string) ([]string, error) {
+	return s.dependency.GetDependents(parentID)
+}
+
+// GetDependencyEdges returns blockers and dependents for an issue
+func (s *ServiceDomain) GetDependencyEdges(issueID string) (*backend.DependencyEdges, error) {
+	return s.dependency.GetDependencyEdges(issueID)
 }

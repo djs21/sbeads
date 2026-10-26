@@ -49,6 +49,8 @@ sbeads/
 | `is_blocked` | `INTEGER DEFAULT 0`| Blocked state: `0` = unblocked / ready, `1` = blocked or in-progress |
 | `is_closed`  | `INTEGER DEFAULT 0`| Lifecycle status: `0` = open, `1` = closed |
 | `is_claimed` | `INTEGER DEFAULT 0`| Claim status: `0` = unclaimed, `1` = claimed by an agent |
+| `agent`      | `TEXT`             | Name or identifier of claiming agent (e.g. `@worker-1`) |
+| `assignee`   | `TEXT`             | Optional assignee username or role |
 | `created_at` | `TEXT NOT NULL` | RFC3339 timestamp of creation |
 | `updated_at` | `TEXT NOT NULL` | RFC3339 timestamp of last update |
 
@@ -60,6 +62,30 @@ sbeads/
 
 *Primary Key:* `(child_id, parent_id)`  
 *Semantics:* Child issue depends on parent issue (`child -> parent`). The parent issue must be completed before the child can proceed.
+
+---
+
+## Status Badges & Observability
+
+`sbeads` provides high-density observability badges designed for quick visual scanning by engineers and precise parsing by autonomous AI agents.
+
+### Status Badge Indicators
+
+| Badge | Status | Description |
+|---|---|---|
+| `[O]` | `OPEN` | Ready to be worked on; unblocked with no unclosed parent dependencies. |
+| `[C]` | `CLAIMED` | Actively claimed and being executed by an agent or assignee (`[@agent]`). |
+| `[B]` | `BLOCKED` | Blocked explicitly (`is_blocked = 1`) or waiting on unclosed parent dependencies. |
+| `[X]` | `CLOSED` | Task has been successfully resolved or closed (`is_closed = 1`). |
+| `[EPIC]` | *(type)* | Marker tag identifying parent epic issues containing subtasks. |
+
+### Status Computation Precedence
+
+The effective status of an issue is dynamically computed from its flags and dependency tree:
+1. **`CLOSED` (`[X]`)**: `is_closed != 0`
+2. **`BLOCKED` (`[B]`)**: `is_blocked != 0` OR any prerequisite parent dependency is unclosed.
+3. **`CLAIMED` (`[C]`)**: `is_claimed != 0`
+4. **`OPEN` (`[O]`)**: Default state when open, unclaimed, and unblocked.
 
 ---
 
@@ -172,7 +198,7 @@ Created issue: sbeads-k7a (Fix database reconnection timeout)
 ---
 
 ### 2. `ready`
-Lists all actionable issues that are ready to be claimed or worked on.
+Lists all actionable issues that are ready to be claimed or worked on (unblocked, unclaimed, and unclosed). Outputs a standardized one-liner format with status badges, priority tag `(P<pri>/<type>)`, and optional `[EPIC]` tag.
 
 ```bash
 sbeads ready
@@ -181,10 +207,20 @@ sbeads ready
 **Options & Flags:**
 None.
 
+**Output Format:**
+```
+<id> [<STATUS>] <[EPIC]> (P<priority>/<type>) <title> <[@agent]>
+```
+
+**Examples:**
+```bash
+sbeads ready
+```
+
 **Output:**
 ```
-sbeads-k7a: Fix database reconnection timeout
-sbeads-4z9: Implement user auth token revocation
+sbeads-k7a [OPEN] (P2/bug) Fix database reconnection timeout
+sbeads-3qt [OPEN] [EPIC] (P1/epic) Epic: Status Badges, Observability, and Coordination Lifecycle
 ```
 If no issues are ready:
 ```
@@ -193,15 +229,70 @@ No ready issues
 
 ---
 
-### 3. `claim`
-Claims an issue for an agent or developer. Sets `is_claimed = 1` and `is_blocked = 1` to prevent race conditions and concurrent double-claims.
+### 3. `list`
+Lists issues with comprehensive filtering and hierarchical tree visualization.
+
+```bash
+sbeads list [flags]
+```
+
+**Options & Flags:**
+- `-a`, `--all`: Show all issues (including closed).
+- `-b`, `--blocked`: Show only blocked issues (explicitly blocked or waiting on unclosed parent dependencies).
+- `-c`, `--closed`: Show only closed issues.
+- `-t`, `--tree`: Show hierarchical tree view (child tasks are indented 2 spaces under their parents/epics).
+- `--json`: Output in machine-readable JSON format.
+- `-h`, `--help`: Help for list command.
+
+**Default Behavior:**
+When run without filter flags (`-a`, `-b`, `-c`), `sbeads list` displays all unclosed issues (`is_closed == 0`).
+
+**Examples:**
+```bash
+# Default: list unclosed issues
+sbeads list
+
+# Hierarchical dependency tree view
+sbeads list --tree
+
+# List all issues including completed/closed
+sbeads list -a
+
+# Filter only blocked issues
+sbeads list --blocked
+
+# Filter only closed issues
+sbeads list --closed
+
+# Machine-readable JSON output
+sbeads list --json
+```
+
+**Output (Flat):**
+```
+sbeads-k7a [OPEN] (P2/bug) Fix database reconnection timeout
+sbeads-4z9 [CLAIMED] (P2/feature) Implement user auth token revocation [@worker-1]
+sbeads-b8x [BLOCKED] (P1/task) Deploy authentication service
+```
+
+**Output (Tree `--tree`):**
+```
+sbeads-3qt [OPEN] [EPIC] (P1/epic) Epic: Status Badges, Observability, and Coordination Lifecycle
+  sbeads-k7a [OPEN] (P2/bug) Fix database reconnection timeout
+  sbeads-b8x [BLOCKED] (P1/task) Deploy authentication service
+```
+
+---
+
+### 4. `claim`
+Claims an issue for an agent or developer. Sets `is_claimed = 1` and `is_blocked = 1` to prevent race conditions and concurrent double-claims across agent panes.
 
 ```bash
 sbeads claim [flags] [issue-id]
 ```
 
 **Options & Flags:**
-- `--issue-id <string>`: Issue ID to claim (required if positional ID omitted).
+- `-i`, `--issue-id <string>`: Issue ID to claim (required if positional ID omitted).
 - `-m`, `--agent <string>`: Name or identifier of claiming agent (default: `"me"`).
 - `-a`, `--assignee <string>`: Assignee username or role.
 - `-h`, `--help`: Help for claim command.
@@ -212,11 +303,13 @@ sbeads claim [flags] [issue-id]
 
 **Examples:**
 ```bash
-# Claim using positional ID (or short hash)
-sbeads claim sbeads-k7a
-sbeads claim k7a
+# Claim using positional ID (or short hash) with agent identifier
+sbeads claim sbeads-k7a --agent worker-1
 
-# Claim with explicit agent name
+# Positional claim with default agent ("me")
+sbeads claim sbeads-k7a
+
+# Claim with explicit flags
 sbeads claim --issue-id sbeads-k7a --agent worker-1 --assignee djs
 ```
 
@@ -227,7 +320,37 @@ Claimed issue: sbeads-k7a (Fix database reconnection timeout) by worker-1
 
 ---
 
-### 4. `close`
+### 5. `unclaim`
+Releases a previous claim on an issue. Clears the assigned agent and assignee, resets `is_claimed = 0`, and unblocks the issue (`is_blocked = 0`) unless it remains blocked by unclosed parent dependencies.
+
+```bash
+sbeads unclaim [flags] [issue-id]
+```
+
+**Options & Flags:**
+- `-i`, `--issue-id <string>`: Issue ID to unclaim (required if positional ID omitted).
+- `-h`, `--help`: Help for unclaim command.
+
+**Validation & Error Conditions:**
+- Fails if the issue does not exist (`issue not found`).
+
+**Examples:**
+```bash
+# Positional issue ID
+sbeads unclaim sbeads-k7a
+
+# Flag-based
+sbeads unclaim --issue-id sbeads-k7a
+```
+
+**Output:**
+```
+Unclaimed issue: sbeads-k7a (Fix database reconnection timeout)
+```
+
+---
+
+### 6. `close`
 Marks an open issue as resolved/closed (`is_closed = 1`).
 
 ```bash
@@ -235,7 +358,7 @@ sbeads close [flags] [issue-id]
 ```
 
 **Options & Flags:**
-- `--issue-id <string>`: Issue ID to close (required if positional ID omitted).
+- `-i`, `--issue-id <string>`: Issue ID to close (required if positional ID omitted).
 
 **Validation & Error Conditions:**
 - Fails if the issue is already closed (`issue already closed`).
@@ -244,49 +367,52 @@ sbeads close [flags] [issue-id]
 **Examples:**
 ```bash
 # Positional issue ID
-sbeads close issue-4df45e43f1145ee2dfef2ec6c367adbf
+sbeads close sbeads-k7a
 
 # Flag-based
-sbeads close --issue-id issue-4df45e43f1145ee2dfef2ec6c367adbf
+sbeads close --issue-id sbeads-k7a
 ```
 
 **Output:**
 ```
-Closed issue: issue-4df45e43f1145ee2dfef2ec6c367adbf (Fix database reconnection timeout)
+Closed issue: sbeads-k7a (Fix database reconnection timeout)
 ```
 
 ---
 
-### 5. `show`
-Displays full details and metadata for a specific issue.
+### 7. `show`
+Displays full details, computed lifecycle status, agent metadata, and bidirectional dependency relationships (`Blocked by:` and `Blocks:`) for a specific issue.
 
 ```bash
 sbeads show [flags] [issue-id]
 ```
 
 **Options & Flags:**
-- `--issue-id <string>`: Issue ID to display (required if positional ID omitted).
+- `-i`, `--issue-id <string>`: Issue ID to display (required if positional ID omitted).
 
 **Examples:**
 ```bash
-sbeads show issue-4df45e43f1145ee2dfef2ec6c367adbf
+sbeads show sbeads-k7a
 ```
 
 **Output:**
 ```
-Issue: issue-4df45e43f1145ee2dfef2ec6c367adbf
+Issue: sbeads-k7a
 Title: Fix database reconnection timeout
 Type: bug
 Priority: 2
+Status: OPEN [O]
+Agent: @worker-1
 Description: Tokens must be immediately invalidated in SQLite cache upon logout
-Blocked: 1
-Closed: 0
-Claimed: 1
+Blocked by:
+  sbeads-3qt: Epic: Status Badges, Observability, and Coordination Lifecycle
+Blocks:
+  sbeads-b8x: Deploy authentication service
 ```
 
 ---
 
-### 6. `dep` (Dependencies)
+### 8. `dep` (Dependencies)
 Manage dependency edges between issues.
 
 #### `dep add`
@@ -359,7 +485,7 @@ sbeads dep remove [flags] [child-id] [parent-id]
 
 ---
 
-### 7. `version`
+### 9. `version`
 Prints the application version string.
 
 ```bash
@@ -397,28 +523,36 @@ sbeads dep add "$TEST_ID" "$CHILD_ID"
 
 # 5. Check dependencies for integration tests
 sbeads dep list "$TEST_ID"
+
+# 6. Inspect overall dependency tree hierarchy
+sbeads list --tree
 ```
 
 ### Workflow 2: Autonomous Agent Task Triage & Claim Cycle
-An autonomous agent loop picking and finishing tasks:
+An autonomous agent loop picking, executing, or releasing tasks:
 
 ```bash
 # Step 1: Scan for ready tasks
 sbeads ready
+# Output:
+# sbeads-k7a [OPEN] (P2/task) Fix database reconnection timeout
 
 # Step 2: Agent selects the top ready issue and claims it
-ISSUE_ID="issue-4df45e43f1145ee2dfef2ec6c367adbf"
-sbeads claim --issue-id "$ISSUE_ID" --agent "worker-pnr-1"
+ISSUE_ID="sbeads-k7a"
+sbeads claim "$ISSUE_ID" --agent "worker-pnr-1"
 
-# Step 3: Inspect detailed requirements
+# Step 3: Inspect detailed requirements and blockers
 sbeads show "$ISSUE_ID"
 
-# Step 4: [Agent executes code implementation and verifies tests]
-
-# Step 5: Close task upon completion
+# Step 4a: [If task execution succeeds]
+# Run tests and verification, then close:
 sbeads close "$ISSUE_ID"
 
-# Step 6: Query next ready work item
+# Step 4b: [If task must be aborted or handed off]
+# Release claim so other agents can pick it up:
+sbeads unclaim "$ISSUE_ID"
+
+# Step 5: Query next ready work item
 sbeads ready
 ```
 
