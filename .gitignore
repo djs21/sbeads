@@ -12,3 +12,7 @@
 
 # Tool caches
 .codegraph/
+
+# Git worktrees
+.worktrees/
+
