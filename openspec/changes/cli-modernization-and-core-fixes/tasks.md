@@ -45,19 +45,19 @@
 
 ## 7. Documentation & Contract Updates
 
-- [ ] 7.1 Update `README.md` with modernized Cobra CLI syntax, POSIX flag options, and 3-char ID examples.
-- [ ] 7.2 Update project skills documentation (`skills/sbeads/SKILL.md`) to reflect Cobra subcommands and flag parameters.
+- [x] 7.1 Update `README.md` with modernized Cobra CLI syntax, POSIX flag options, and 3-char ID examples.
+- [x] 7.2 Update project skills documentation (`skills/sbeads/SKILL.md`) to reflect Cobra subcommands and flag parameters.
 
 ## 8. E2E Verification & Shell Command Scenarios
 
-- [ ] 8.1 Verify `sbeads create` creates issues with `sbeads-xxx` 3-character Base36 hash IDs.
-- [ ] 8.2 Verify `sbeads dep add <child-id> <parent-id>` blocks child issue in `sbeads ready` output.
-- [ ] 8.3 Verify `sbeads close <parent-id>` unblocks child issue in `sbeads ready` output.
-- [ ] 8.4 Verify `sbeads help <cmd>` and `<cmd> -h` produce consistent, accurate help text.
+- [x] 8.1 Verify `sbeads create` creates issues with `sbeads-xxx` 3-character Base36 hash IDs.
+- [x] 8.2 Verify `sbeads dep add <child-id> <parent-id>` blocks child issue in `sbeads ready` output.
+- [x] 8.3 Verify `sbeads close <parent-id>` unblocks child issue in `sbeads ready` output.
+- [x] 8.4 Verify `sbeads help <cmd>` and `<cmd> -h` produce consistent, accurate help text.
 
 ## 9. Quality Gates & Closeout
 
-- [ ] 9.1 Run full race-detector test suite (`go test -race ./...`) and ensure all tests pass.
-- [ ] 9.2 Compile release binary via `./build.sh --dev` without warnings.
-- [ ] 9.3 Perform line-of-code ceiling audit verifying no file in `cmd/bd/` exceeds 400 LOC.
-- [ ] 9.4 Validate OpenSpec change with `openspec validate cli-modernization-and-core-fixes`.
+- [x] 9.1 Run full race-detector test suite (`go test -race ./...`) and ensure all tests pass.
+- [x] 9.2 Compile release binary via `./build.sh --dev` without warnings.
+- [x] 9.3 Perform line-of-code ceiling audit verifying no file in `cmd/bd/` exceeds 400 LOC.
+- [x] 9.4 Validate OpenSpec change with `openspec validate cli-modernization-and-core-fixes`.
