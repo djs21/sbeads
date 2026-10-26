@@ -19,29 +19,29 @@
 
 ## 4. Cobra Vertical Slices (< 400 LOC ceiling per file)
 
-- [ ] 4.1 Implement `cmd/bd/context.go` (~40 LOC) encapsulating `Storage`, `ServiceDomain`, and database discovery.
-- [ ] 4.2 Initialize Cobra root command slice in `cmd/bd/root.go` (~70 LOC) with persistent flags, version flag, and `PersistentPreRunE` hook.
-- [ ] 4.3 Implement `create` command slice in `cmd/bd/create.go` (~60 LOC) supporting POSIX flags (`-t`/`--title`, `-p`/`--priority`, `-d`/`--description`, `--type`, `--blocked`).
-- [ ] 4.4 Implement `ready` command slice in `cmd/bd/ready.go` (~40 LOC) formatting ready issues.
-- [ ] 4.5 Implement `claim` command slice in `cmd/bd/claim.go` (~50 LOC) supporting POSIX flags (`-a`/`--assignee`, `-m`/`--agent`) and positional ID.
-- [ ] 4.6 Implement `close` command slice in `cmd/bd/close.go` (~45 LOC) supporting issue closing by ID or short hash.
-- [ ] 4.7 Implement `show` command slice in `cmd/bd/show.go` (~50 LOC) rendering issue details, status, and dependency edges.
-- [ ] 4.8 Implement `dep` command slice in `cmd/bd/dep.go` (~90 LOC) supporting `dep add` and `dep list` subcommands.
-- [ ] 4.9 Implement `version` command slice in `cmd/bd/version.go` (~25 LOC).
+- [x] 4.1 Implement `cmd/bd/context.go` (~40 LOC) encapsulating `Storage`, `ServiceDomain`, and database discovery.
+- [x] 4.2 Initialize Cobra root command slice in `cmd/bd/root.go` (~70 LOC) with persistent flags, version flag, and `PersistentPreRunE` hook.
+- [x] 4.3 Implement `create` command slice in `cmd/bd/create.go` (~60 LOC) supporting POSIX flags (`-t`/`--title`, `-p`/`--priority`, `-d`/`--description`, `--type`, `--blocked`).
+- [x] 4.4 Implement `ready` command slice in `cmd/bd/ready.go` (~40 LOC) formatting ready issues.
+- [x] 4.5 Implement `claim` command slice in `cmd/bd/claim.go` (~50 LOC) supporting POSIX flags (`-a`/`--assignee`, `-m`/`--agent`) and positional ID.
+- [x] 4.6 Implement `close` command slice in `cmd/bd/close.go` (~45 LOC) supporting issue closing by ID or short hash.
+- [x] 4.7 Implement `show` command slice in `cmd/bd/show.go` (~50 LOC) rendering issue details, status, and dependency edges.
+- [x] 4.8 Implement `dep` command slice in `cmd/bd/dep.go` (~90 LOC) supporting `dep add` and `dep list` subcommands.
+- [x] 4.9 Implement `version` command slice in `cmd/bd/version.go` (~25 LOC).
 
 ## 5. CLI Lifecycle & Application Wiring
 
-- [ ] 5.1 Refactor `cmd/bd/main.go` entrypoint to be a minimal runner (~25 LOC) executing `Execute()`.
-- [ ] 5.2 Ensure `PersistentPreRunE` handles DB initialization exclusively for stateful commands, bypassing `help` and `version`.
-- [ ] 5.3 Configure Cobra `SilenceUsage: true` and `SilenceErrors: true` for clean error reporting without usage dump on execution errors.
+- [x] 5.1 Refactor `cmd/bd/main.go` entrypoint to be a minimal runner (~25 LOC) executing `Execute()`.
+- [x] 5.2 Ensure `PersistentPreRunE` handles DB initialization exclusively for stateful commands, bypassing `help` and `version`.
+- [x] 5.3 Configure Cobra `SilenceUsage: true` and `SilenceErrors: true` for clean error reporting without usage dump on execution errors.
 
 ## 6. Unit & Slice Test Suites (Strict < 400 LOC Per Test File)
 
-- [ ] 6.1 Implement `cmd/bd/root_test.go` (~80 LOC) asserting root help, `-h`/`--help`, and unknown command handling.
-- [ ] 6.2 Implement `cmd/bd/create_test.go` (~90 LOC) asserting flag parsing, positional title fallback, and validation.
-- [ ] 6.3 Implement `cmd/bd/ready_test.go` (~80 LOC) asserting ready queue output, closed issue exclusion, and dependency blocking.
-- [ ] 6.4 Implement `cmd/bd/claim_close_test.go` (~100 LOC) asserting claim/close state transitions, agent assignment, and error conditions.
-- [ ] 6.5 Implement `cmd/bd/dep_test.go` (~90 LOC) asserting `dep add` and `dep list` subcommands and error cases.
+- [x] 6.1 Implement `cmd/bd/root_test.go` (~80 LOC) asserting root help, `-h`/`--help`, and unknown command handling.
+- [x] 6.2 Implement `cmd/bd/create_test.go` (~90 LOC) asserting flag parsing, positional title fallback, and validation.
+- [x] 6.3 Implement `cmd/bd/ready_test.go` (~80 LOC) asserting ready queue output, closed issue exclusion, and dependency blocking.
+- [x] 6.4 Implement `cmd/bd/claim_close_test.go` (~100 LOC) asserting claim/close state transitions, agent assignment, and error conditions.
+- [x] 6.5 Implement `cmd/bd/dep_test.go` (~90 LOC) asserting `dep add` and `dep list` subcommands and error cases.
 
 ## 7. Documentation & Contract Updates
 
