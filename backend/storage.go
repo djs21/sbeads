@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -42,7 +43,7 @@ func NewStorage(path string) (*StorageImpl, error) {
 	return &StorageImpl{db: db}, nil
 }
 
-// CreateIssue inserts a new issue
+// CreateIssue inserts a new issue with retry on ID collision
 func (s *StorageImpl) CreateIssue(issue *types.Issue) error {
 	if issue.CreatedAt.IsZero() {
 		issue.CreatedAt = time.Now()
@@ -50,9 +51,24 @@ func (s *StorageImpl) CreateIssue(issue *types.Issue) error {
 	if issue.UpdatedAt.IsZero() {
 		issue.UpdatedAt = time.Now()
 	}
-	_, err := s.db.Exec("INSERT INTO issues (id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		issue.ID, issue.Title, issue.IssueType, issue.Priority, issue.Description,
-		issue.IsBlocked, issue.IsClosed, issue.IsClaimed, issue.CreatedAt.Format(time.RFC3339), issue.UpdatedAt.Format(time.RFC3339))
+
+	const maxRetries = 5
+	var err error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		_, err = s.db.Exec("INSERT INTO issues (id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+			issue.ID, issue.Title, issue.IssueType, issue.Priority, issue.Description,
+			issue.IsBlocked, issue.IsClosed, issue.IsClaimed, issue.CreatedAt.Format(time.RFC3339), issue.UpdatedAt.Format(time.RFC3339))
+		if err == nil {
+			return nil
+		}
+		// If collision on unique constraint and ID is generated (has prefix), regenerate hash and retry
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") && strings.Contains(issue.ID, "-") {
+			parts := strings.Split(issue.ID, "-")
+			issue.ID = types.GenerateIDWithPrefix(parts[0])
+			continue
+		}
+		return err
+	}
 	return err
 }
 

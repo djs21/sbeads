@@ -7,7 +7,7 @@ import (
 
 // GenerateID generates a unique ID
 func GenerateID() string {
-	return "issue-" + types.GenerateID()
+	return types.GenerateID()
 }
 
 // ServiceDomain combines all domain logic

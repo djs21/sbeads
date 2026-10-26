@@ -11,11 +11,11 @@ func TestServiceDomain(t *testing.T) {
 
 	t.Run("GenerateID format", func(t *testing.T) {
 		id := GenerateID()
-		if !strings.HasPrefix(id, "issue-") {
-			t.Errorf("expected id to start with 'issue-', got %s", id)
+		if !strings.HasPrefix(id, "sbeads-") {
+			t.Errorf("expected id to start with 'sbeads-', got %s", id)
 		}
-		if len(id) < 10 {
-			t.Errorf("id is suspiciously short: %s", id)
+		if len(id) != 10 { // "sbeads-" (7) + 3 chars = 10
+			t.Errorf("expected id length 10, got %d (%s)", len(id), id)
 		}
 	})
 

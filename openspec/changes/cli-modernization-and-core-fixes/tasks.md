@@ -13,9 +13,9 @@
 
 ## 3. Types & Short ID Generator (Base36 + Collision Retry)
 
-- [ ] 3.1 Update `internal/types/types.go` with 3-character Base36 hash ID generator (`[0-9a-z]`, 46,656 space) formatted as `<prefix>-<hash3>` (defaulting to `sbeads-` prefix or directory name).
-- [ ] 3.2 Add retry mechanism for storage `CreateIssue` to gracefully retry with new random hash on unique constraint collision.
-- [ ] 3.3 Add unit tests in `internal/types/types_test.go` verifying ID format, randomness distribution, and prefix customization.
+- [x] 3.1 Update `internal/types/types.go` with 3-character Base36 hash ID generator (`[0-9a-z]`, 46,656 space) formatted as `<prefix>-<hash3>` (defaulting to `sbeads-` prefix or directory name).
+- [x] 3.2 Add retry mechanism for storage `CreateIssue` to gracefully retry with new random hash on unique constraint collision.
+- [x] 3.3 Add unit tests in `internal/types/types_test.go` verifying ID format, randomness distribution, and prefix customization.
 
 ## 4. Cobra Vertical Slices (< 400 LOC ceiling per file)
 
