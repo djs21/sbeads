@@ -13,6 +13,8 @@ Command-line interface and subcommand implementations for the `sbeads` / `bd` to
 
 ## Local Contracts
 
+- Structure follows Domain-Driven Vertical Slice Architecture (DD-VSA) where each command slice is an isolated file under cmd/bd/
+- Strict source file ceiling: every source file and test file must stay under 400 LOC
 - Commands initialize database and domain services via `AppContext` during `PersistentPreRunE`
 - Database connections close in `PersistentPostRunE`
 - Database location follows resolution precedence: explicit flag, `SBEADS_DB` / `SBEADS_DIR` environment variables, ancestor search for `.sbeads/`, falling back to local `.sbeads/sbeads.db`

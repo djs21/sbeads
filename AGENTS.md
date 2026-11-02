@@ -76,6 +76,7 @@ Default section order:
 
 ## User Preferences
 
+- Architecture preference: Enforce Domain-Driven Vertical Slice Architecture (DD-VSA) across the codebase with a strict ceiling of under 400 LOC per file for all source and test files
 - Projects support dynamic prefix naming based on git root folder, SBEADS_PREFIX, or custom `--prefix` flag
 - Issue deletion is supported via `delete` (aliases `rm`, `del`) with dependency safety guards and `--force` cascade
 - When deleting dependency edges, use `dep rm` (aliases `remove`, `del`)
