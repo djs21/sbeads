@@ -31,6 +31,9 @@ func NewShowCmd() *cobra.Command {
 
 			issue, err := appCtx.Storage.GetIssue(id)
 			if err != nil {
+				if strings.Contains(err.Error(), "tamper detected") {
+					return err
+				}
 				return fmt.Errorf("issue not found: %s", id)
 			}
 
@@ -55,10 +58,10 @@ func NewShowCmd() *cobra.Command {
 			fmt.Fprintf(out, "Priority: %d\n", issue.Priority)
 			fmt.Fprintf(out, "Status: %s %s\n", status, status.ShortBadge())
 
-			agent := issue.Agent
-			if agent == "" {
-				agent = issue.Assignee
+			if issue.Assignee != "" {
+				fmt.Fprintf(out, "Assignee: %s\n", issue.Assignee)
 			}
+			agent := issue.Agent
 			if (issue.IsClaimed != 0 || agent != "") && agent != "" {
 				agent = strings.TrimPrefix(agent, "@")
 				fmt.Fprintf(out, "Agent: @%s\n", agent)

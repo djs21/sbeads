@@ -35,6 +35,9 @@ func NewRootCmd() *cobra.Command {
 			// Automatically ensure local database and secret keys are protected in .gitignore
 			_, _ = domain.EnsureGitignoreProtection(filepath.Dir(dbPath))
 
+			// Automatically inject sbeads protocol guide into AGENTS.md on first use
+			_, _ = domain.EnsureAgentsOnboarding(filepath.Dir(dbPath))
+
 			storage, err := backend.NewStorage(dbPath)
 			if err != nil {
 				return fmt.Errorf("creating storage: %w", err)
@@ -80,6 +83,10 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(NewDeleteCmd())
 	rootCmd.AddCommand(NewUpdateCmd())
 	rootCmd.AddCommand(NewExportCmd())
+	rootCmd.AddCommand(NewImportCmd())
+	rootCmd.AddCommand(NewBlockCmd())
+	rootCmd.AddCommand(NewUnblockCmd())
+	rootCmd.AddCommand(NewAssignCmd())
 
 	return rootCmd
 }
