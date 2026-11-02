@@ -116,3 +116,12 @@ func (d *IssueDomain) Unclaim(id string) (*types.Issue, error) {
 	issue.UpdatedAt = time.Now()
 	return issue, nil
 }
+
+// DeleteIssue deletes an issue
+func (d *IssueDomain) DeleteIssue(id string, cascade bool) error {
+	issue, err := d.storage.GetIssue(id)
+	if err != nil {
+		return err
+	}
+	return d.storage.DeleteIssue(issue.ID, cascade)
+}

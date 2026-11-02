@@ -26,15 +26,21 @@ func NewServiceDomain(storage *backend.StorageImpl) *ServiceDomain {
 
 // Create creates a new issue
 func (s *ServiceDomain) Create(title, issueType string, priority int, description string, blocked int) (*types.Issue, error) {
+	return s.CreateWithPrefix("sbeads", title, issueType, priority, description, blocked)
+}
+
+// CreateWithPrefix creates a new issue with a specified prefix
+func (s *ServiceDomain) CreateWithPrefix(prefix, title, issueType string, priority int, description string, blocked int) (*types.Issue, error) {
+	clean := CleanPrefix(prefix)
 	issue := &types.Issue{
-		ID:        GenerateID(),
-		Title:     title,
-		IssueType: issueType,
-		Priority:  priority,
+		ID:          types.GenerateIDWithPrefix(clean),
+		Title:       title,
+		IssueType:   issueType,
+		Priority:    priority,
 		Description: description,
-		IsBlocked: blocked,
-		IsClosed:  0,
-		IsClaimed: 0,
+		IsBlocked:   blocked,
+		IsClosed:    0,
+		IsClaimed:   0,
 	}
 
 	return s.issue.CreateIssue(issue)
@@ -78,4 +84,14 @@ func (s *ServiceDomain) GetDependents(parentID string) ([]string, error) {
 // GetDependencyEdges returns blockers and dependents for an issue
 func (s *ServiceDomain) GetDependencyEdges(issueID string) (*backend.DependencyEdges, error) {
 	return s.dependency.GetDependencyEdges(issueID)
+}
+
+// Delete deletes an issue by ID
+func (s *ServiceDomain) Delete(id string, cascade bool) error {
+	return s.issue.DeleteIssue(id, cascade)
+}
+
+// RemoveDependency removes a dependency relationship
+func (s *ServiceDomain) RemoveDependency(childID, parentID string) error {
+	return s.dependency.RemoveDependency(childID, parentID)
 }

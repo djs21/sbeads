@@ -3,8 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
+	"sbeads/internal/domain"
 )
 
 func NewCreateCmd() *cobra.Command {
@@ -14,6 +16,7 @@ func NewCreateCmd() *cobra.Command {
 		priority    int
 		description string
 		blocked     int
+		prefix      string
 	)
 
 	cmd := &cobra.Command{
@@ -35,7 +38,20 @@ func NewCreateCmd() *cobra.Command {
 				return errors.New("service domain unavailable in context")
 			}
 
-			issue, err := appCtx.Service.Create(title, issueType, priority, description, blocked)
+			// Prefix resolution order:
+			// 1. Explicit --prefix flag
+			// 2. SBEADS_PREFIX environment variable
+			// 3. Auto-detected project prefix from active git root / directory
+			// 4. Default fallback ("sbeads")
+			resolvedPrefix := prefix
+			if resolvedPrefix == "" {
+				resolvedPrefix = os.Getenv("SBEADS_PREFIX")
+			}
+			if resolvedPrefix == "" {
+				resolvedPrefix = domain.DetectProjectPrefix("")
+			}
+
+			issue, err := appCtx.Service.CreateWithPrefix(resolvedPrefix, title, issueType, priority, description, blocked)
 			if err != nil {
 				return fmt.Errorf("creating issue: %w", err)
 			}
@@ -52,6 +68,7 @@ func NewCreateCmd() *cobra.Command {
 	flags.StringVar(&issueType, "issue-type", "task", "Issue type")
 	flags.StringVarP(&issueType, "type", "y", "task", "Issue type (alias)")
 	flags.IntVarP(&blocked, "blocked", "b", 0, "Is blocked (0 or 1)")
+	flags.StringVar(&prefix, "prefix", "", "Custom issue ID prefix (defaults to active project name)")
 
 	return cmd
 }

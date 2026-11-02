@@ -51,4 +51,14 @@ func TestCreateCommand(t *testing.T) {
 			t.Fatalf("expected negative priority error, got: %v", err)
 		}
 	})
+
+	t.Run("Create with custom prefix flag", func(t *testing.T) {
+		out, err := executeCmd("create", "Godzilla Issue", "--prefix", "godzilla")
+		if err != nil {
+			t.Fatalf("create with prefix failed: %v", err)
+		}
+		if !strings.Contains(out, "Created issue: godzilla-") {
+			t.Errorf("expected ID with godzilla- prefix, got: %s", out)
+		}
+	})
 }

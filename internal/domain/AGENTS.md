@@ -9,6 +9,8 @@ Business logic, issue lifecycle transitions, dependency graph resolution, and do
 - `ServiceDomain`, `IssueDomain`, and `DependencyDomain` services
 - Status computation rules (`CLOSED`, `BLOCKED`, `CLAIMED`, `OPEN`)
 - Issue claim and unclaim validation
+- Issue deletion safety validation and cascade handling
+- Project prefix resolution and sanitization (`DetectProjectPrefix`, `CleanPrefix`)
 - Dependency cycle detection and blocking rules
 - Domain errors (`ErrIssueNotFound`, `ErrCircularDependency`, `ErrSelfDependency`, `ErrParentNotClosed`)
 
@@ -22,6 +24,8 @@ Business logic, issue lifecycle transitions, dependency graph resolution, and do
 - Direct circular dependencies and transitive cycles are rejected on creation
 - Issues cannot depend on themselves (`ErrSelfDependency`)
 - Issues must exist in storage before dependencies can be created
+- Deleting an issue with active dependents requires explicit cascade
+- Project prefix resolves to active git root directory name or fallback "sbeads"
 
 ## Work Guidance
 

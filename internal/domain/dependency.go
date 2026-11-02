@@ -40,7 +40,7 @@ func (d *DependencyDomain) RemoveDependency(childID, parentID string) error {
 		return ErrDependencyNotFound
 	}
 
-	return nil
+	return d.storage.RemoveDependency(childID, parentID)
 }
 
 // GetDependencies gets all dependencies for an issue

@@ -91,4 +91,76 @@ func TestServiceDomain(t *testing.T) {
 			t.Errorf("expected IsClosed=1, got %d", closed.IsClosed)
 		}
 	})
+
+	t.Run("CreateWithPrefix custom", func(t *testing.T) {
+		customIssue, err := svc.CreateWithPrefix("godzilla", "Godzilla Task", "task", 2, "Desc", 0)
+		if err != nil {
+			t.Fatalf("CreateWithPrefix failed: %v", err)
+		}
+		if !strings.HasPrefix(customIssue.ID, "godzilla-") {
+			t.Errorf("expected ID starting with godzilla-, got %s", customIssue.ID)
+		}
+	})
+
+	t.Run("RemoveDependency and Delete issue", func(t *testing.T) {
+		child, err := svc.Create("Child Task", "task", 1, "", 0)
+		if err != nil {
+			t.Fatalf("Create child failed: %v", err)
+		}
+		parent, err := svc.Create("Parent Task", "task", 1, "", 0)
+		if err != nil {
+			t.Fatalf("Create parent failed: %v", err)
+		}
+		if err := svc.AddDependency(child.ID, parent.ID); err != nil {
+			t.Fatalf("AddDependency failed: %v", err)
+		}
+
+		// Deleting parent without cascade should fail
+		if err := svc.Delete(parent.ID, false); err == nil {
+			t.Fatal("expected error deleting parent issue with active dependents when cascade=false")
+		}
+
+		// Remove dependency
+		if err := svc.RemoveDependency(child.ID, parent.ID); err != nil {
+			t.Fatalf("RemoveDependency failed: %v", err)
+		}
+
+		// Now deleting parent without cascade should succeed
+		if err := svc.Delete(parent.ID, false); err != nil {
+			t.Fatalf("Delete parent failed: %v", err)
+		}
+
+		// Deleting with cascade
+		p2, err := svc.Create("Parent 2", "task", 1, "", 0)
+		if err != nil {
+			t.Fatalf("Create p2 failed: %v", err)
+		}
+		c2, err := svc.Create("Child 2", "task", 1, "", 0)
+		if err != nil {
+			t.Fatalf("Create c2 failed: %v", err)
+		}
+		if err := svc.AddDependency(c2.ID, p2.ID); err != nil {
+			t.Fatalf("AddDependency p2-c2 failed: %v", err)
+		}
+		if err := svc.Delete(p2.ID, true); err != nil {
+			t.Fatalf("Delete p2 with cascade failed: %v", err)
+		}
+	})
+}
+
+func TestDetectProjectPrefix(t *testing.T) {
+	tempDir := t.TempDir()
+	// CleanPrefix tests
+	if got := CleanPrefix("My_Project-Name 123!"); got != "my-project-name-123" {
+		t.Errorf("unexpected CleanPrefix result: %s", got)
+	}
+	if got := CleanPrefix("---"); got != "sbeads" {
+		t.Errorf("expected fallback 'sbeads', got %s", got)
+	}
+
+	// Detect in empty directory
+	prefix := DetectProjectPrefix(tempDir)
+	if prefix == "" {
+		t.Errorf("expected non-empty prefix")
+	}
 }

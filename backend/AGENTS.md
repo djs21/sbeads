@@ -9,7 +9,7 @@ SQLite persistence engine and database operations for sbeads.
 - Storage interface definitions (`Storage`) and SQLite implementation (`StorageImpl`)
 - Database migrations, table creation, and indices
 - SQLite connection lifecycle, WAL configuration, and busy timeouts
-- Issue CRUD, dependency persistence, and query execution
+- Issue CRUD, dependency persistence, transactional deletion (with cascade), and query execution
 
 ## Local Contracts
 

@@ -22,6 +22,7 @@ func NewDepCmd() *cobra.Command {
 
 	cmd.AddCommand(newDepAddCmd())
 	cmd.AddCommand(newDepListCmd())
+	cmd.AddCommand(newDepRemoveCmd())
 
 	return cmd
 }
@@ -103,6 +104,46 @@ func newDepListCmd() *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&issueID, "issue-id", "", "Issue ID")
+
+	return cmd
+}
+
+func newDepRemoveCmd() *cobra.Command {
+	var (
+		childID  string
+		parentID string
+	)
+
+	cmd := &cobra.Command{
+		Use:     "rm [child] [parent]",
+		Aliases: []string{"remove", "del"},
+		Short:   "Remove a dependency between issues",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if childID == "" && len(args) >= 2 {
+				childID = args[0]
+				parentID = args[1]
+			}
+			if childID == "" || parentID == "" {
+				return errors.New("--child and --parent are required")
+			}
+
+			appCtx := GetAppContext(cmd.Context())
+			if appCtx == nil || appCtx.Service == nil {
+				return errors.New("service domain unavailable in context")
+			}
+
+			if err := appCtx.Service.RemoveDependency(childID, parentID); err != nil {
+				return fmt.Errorf("removing dependency: %w", err)
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Removed dependency: %s -> %s\n", childID, parentID)
+			return nil
+		},
+	}
+
+	flags := cmd.Flags()
+	flags.StringVar(&childID, "child", "", "Child issue ID")
+	flags.StringVar(&parentID, "parent", "", "Parent issue ID")
 
 	return cmd
 }
