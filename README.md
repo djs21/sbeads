@@ -41,10 +41,10 @@ sbeads/
 #### `issues`
 | Field | SQLite Type | Description |
 |---|---|---|
-| `id` | `TEXT PRIMARY KEY` | Unique ID in the format `issue-<32-hex-characters>` (cryptographically random) |
+| `id` | `TEXT PRIMARY KEY` | Unique ID in the format `<prefix>-<hash3>` (3-character Base36 random string, default prefix auto-detected from active git repository or overridden by `--prefix`) |
 | `title` | `TEXT NOT NULL` | Short title or summary of the task |
 | `issue_type` | `TEXT NOT NULL` | Type classification (e.g. `bug`, `feature`, `task`) |
-| `priority` | `INTEGER NOT NULL` | Integer priority value (0–10, non-negative; higher = more urgent) |
+| `priority` | `INTEGER NOT NULL` | Integer priority value (0 to 10, non-negative; higher = more urgent) |
 | `description`| `TEXT` | Detailed problem description, criteria, or agent brief |
 | `is_blocked` | `INTEGER DEFAULT 0`| Blocked state: `0` = unblocked / ready, `1` = blocked or in-progress |
 | `is_closed`  | `INTEGER DEFAULT 0`| Lifecycle status: `0` = open, `1` = closed |
@@ -163,9 +163,10 @@ sbeads create [flags] [title]
 **Options & Flags:**
 - `-t`, `--title <string>`: Issue title (required if positional title omitted).
 - `-y`, `--type`, `--issue-type <string>`: Type category (e.g. `bug`, `feature`, `task`). Default: `task`.
-- `-p`, `--priority <int>`: Priority rating (0–10, default: `0`). Must be non-negative.
+- `-p`, `--priority <int>`: Priority rating (0 to 10, default: `0`). Must be non-negative.
 - `-d`, `--description <string>`: Detailed issue description or specification.
 - `-b`, `--blocked <0|1>`: Explicit blocked flag (`0` = unblocked, `1` = blocked). Default: `0`.
+- `--prefix <string>`: Custom issue ID prefix (defaults to active git project name, SBEADS_PREFIX, or `sbeads`).
 - `-h`, `--help`: Help for create command.
 
 **Positional Shorthand:**
@@ -188,6 +189,9 @@ sbeads create \
 
 # Creating a pre-blocked task
 sbeads create "Deploy to staging" -b 1
+
+# Creating an issue with custom project prefix
+sbeads create "Design storage engine" --prefix godzilla
 ```
 
 **Output:**
@@ -469,11 +473,14 @@ If no dependencies exist:
 No dependencies
 ```
 
-#### `dep remove`
+#### `dep rm` (aliases: `remove`, `del`)
 Removes a dependency relationship between a child issue and a parent issue.
 
 ```bash
-sbeads dep remove [flags] [child-id] [parent-id]
+sbeads dep rm [flags] [child-id] [parent-id]
+# Or using aliases:
+sbeads dep remove [child-id] [parent-id]
+sbeads dep del [child-id] [parent-id]
 ```
 
 **Options & Flags:**
@@ -485,7 +492,43 @@ sbeads dep remove [flags] [child-id] [parent-id]
 
 ---
 
-### 9. `version`
+### 9. `delete` (aliases: `rm`, `del`)
+Permanently deletes an issue from the tracker.
+
+```bash
+sbeads delete [flags] [issue-id]
+# Or using aliases:
+sbeads rm [issue-id]
+sbeads del [issue-id]
+```
+
+**Options & Flags:**
+- `--id <string>`: Issue ID to delete (required if positional ID omitted).
+- `-f`, `--force`: Force delete and cascade remove all related dependency edges.
+- `-c`, `--cascade`: Alias for `--force`.
+- `-h`, `--help`: Help for delete command.
+
+**Validation & Safety Guards:**
+- Refuses deletion if active issues depend on this issue (`cannot delete issue <id>: X issues depend on it`), preventing broken dependency graphs.
+- To override safety guards and clear dependencies automatically, pass `--force` or `-f`.
+
+**Examples:**
+```bash
+# Delete issue by positional ID
+sbeads rm sbeads-k7a
+
+# Force delete with cascade
+sbeads del -f sbeads-k7a
+```
+
+**Output:**
+```
+Deleted issue: sbeads-k7a
+```
+
+---
+
+### 10. `version`
 Prints the application version string.
 
 ```bash

@@ -76,7 +76,9 @@ Default section order:
 
 ## User Preferences
 
-When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md
+- Projects support dynamic prefix naming based on git root folder, SBEADS_PREFIX, or custom `--prefix` flag
+- Issue deletion is supported via `delete` (aliases `rm`, `del`) with dependency safety guards and `--force` cascade
+- When deleting dependency edges, use `dep rm` (aliases `remove`, `del`)
 
 ## Child DOX Index
 

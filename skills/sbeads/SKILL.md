@@ -107,6 +107,9 @@ sbeads create \
   -p 3 \
   -d "Buffer slice retains old references causing GC retention"
 
+# Custom project prefix (default auto-detects from git root or SBEADS_PREFIX)
+sbeads create "Build core engine" --prefix godzilla
+
 # Capturing the generated Issue ID in bash (3-character Base36 ID, e.g. sbeads-abc)
 ISSUE_ID=$(sbeads create "Draft API specification" | grep -o '[a-z0-9_-]*-[0-9a-z]\{3\}')
 echo "New issue: $ISSUE_ID"
@@ -198,7 +201,10 @@ sbeads dep add "$CHILD_ISSUE_ID" "$PARENT_ISSUE_ID"
 sbeads dep list "$CHILD_ISSUE_ID"
 
 # Remove dependency when no longer blocking
+sbeads dep rm "$CHILD_ISSUE_ID" "$PARENT_ISSUE_ID"
+# Or using aliases:
 sbeads dep remove "$CHILD_ISSUE_ID" "$PARENT_ISSUE_ID"
+sbeads dep del "$CHILD_ISSUE_ID" "$PARENT_ISSUE_ID"
 ```
 
 ### 8. Closing Completed Issues
