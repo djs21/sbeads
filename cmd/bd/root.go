@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"sbeads/backend"
@@ -30,6 +31,9 @@ func NewRootCmd() *cobra.Command {
 			if err := backend.CreateTables(dbPath); err != nil {
 				return fmt.Errorf("creating tables: %w", err)
 			}
+
+			// Automatically ensure local database and secret keys are protected in .gitignore
+			_, _ = domain.EnsureGitignoreProtection(filepath.Dir(dbPath))
 
 			storage, err := backend.NewStorage(dbPath)
 			if err != nil {
