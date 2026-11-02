@@ -37,7 +37,8 @@ type Storage interface {
 
 // StorageImpl implements the Storage interface
 type StorageImpl struct {
-	db *sql.DB
+	db      *sql.DB
+	authKey []byte
 }
 
 // NewStorage creates a new database storage
@@ -50,7 +51,14 @@ func NewStorage(path string) (*StorageImpl, error) {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
-	return &StorageImpl{db: db}, nil
+
+	authKey, err := EnsureAuthKey(filepath.Dir(path))
+	if err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("initializing auth key: %w", err)
+	}
+
+	return &StorageImpl{db: db, authKey: authKey}, nil
 }
 
 // CreateIssue inserts a new issue with retry on ID collision
@@ -69,6 +77,10 @@ func (s *StorageImpl) CreateIssue(issue *types.Issue) error {
 			issue.ID, issue.Title, issue.IssueType, issue.Priority, issue.Description,
 			issue.IsBlocked, issue.IsClosed, issue.IsClaimed, issue.Agent, issue.Assignee, issue.CreatedAt.Format(time.RFC3339), issue.UpdatedAt.Format(time.RFC3339))
 		if err == nil {
+			if len(s.authKey) > 0 {
+				hash := ComputeIssueHMAC(s.authKey, issue)
+				_, _ = s.db.Exec("UPDATE issues SET mutation_hash = ? WHERE id = ?", hash, issue.ID)
+			}
 			return nil
 		}
 		// If collision on unique constraint and ID is generated (has prefix), regenerate hash and retry
@@ -85,18 +97,18 @@ func (s *StorageImpl) CreateIssue(issue *types.Issue) error {
 // GetIssue retrieves an issue by ID (exact match or prefix/short-ID match)
 func (s *StorageImpl) GetIssue(id string) (*types.Issue, error) {
 	var issue types.Issue
-	var createdAtStr, updatedAtStr string
+	var createdAtStr, updatedAtStr, mutationHash string
 
 	// 1. Exact match
-	query := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at FROM issues WHERE id = ?"
+	query := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at, COALESCE(mutation_hash, '') FROM issues WHERE id = ?"
 	err := s.db.QueryRow(query, id).Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
-		&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr)
+		&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr, &mutationHash)
 
 	// 2. Fallback to short hash or prefix match (e.g. sbeads-<id>, or <id>%)
 	if err == sql.ErrNoRows {
-		queryFallback := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at FROM issues WHERE id LIKE ? OR id LIKE ? ORDER BY length(id) ASC LIMIT 1"
+		queryFallback := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at, COALESCE(mutation_hash, '') FROM issues WHERE id LIKE ? OR id LIKE ? ORDER BY length(id) ASC LIMIT 1"
 		err = s.db.QueryRow(queryFallback, "%-"+id, id+"%").Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
-			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr)
+			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr, &mutationHash)
 	}
 
 	if err != nil {
@@ -109,6 +121,14 @@ func (s *StorageImpl) GetIssue(id string) (*types.Issue, error) {
 	if t, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
 		issue.UpdatedAt = t
 	}
+
+	// Verify HMAC if key and hash exist
+	if len(s.authKey) > 0 && mutationHash != "" {
+		if !VerifyIssueHMAC(s.authKey, &issue, mutationHash) {
+			return nil, fmt.Errorf("tamper detected: issue %s was modified outside sbeads CLI", issue.ID)
+		}
+	}
+
 	return &issue, nil
 }
 
@@ -118,13 +138,13 @@ type DependencyEdges struct {
 	Dependents []types.Issue
 }
 
-func scanIssues(rows *sql.Rows) ([]types.Issue, error) {
+func scanIssues(rows *sql.Rows, authKey []byte) ([]types.Issue, error) {
 	var issues []types.Issue
 	for rows.Next() {
 		var issue types.Issue
-		var createdAtStr, updatedAtStr string
+		var createdAtStr, updatedAtStr, mutationHash string
 		if err := rows.Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
-			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr); err != nil {
+			&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr, &mutationHash); err != nil {
 			return nil, err
 		}
 		if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
@@ -133,6 +153,13 @@ func scanIssues(rows *sql.Rows) ([]types.Issue, error) {
 		if t, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
 			issue.UpdatedAt = t
 		}
+
+		if len(authKey) > 0 && mutationHash != "" {
+			if !VerifyIssueHMAC(authKey, &issue, mutationHash) {
+				return nil, fmt.Errorf("tamper detected: issue %s was modified outside sbeads CLI", issue.ID)
+			}
+		}
+
 		issues = append(issues, issue)
 	}
 	if err := rows.Err(); err != nil {
@@ -143,19 +170,39 @@ func scanIssues(rows *sql.Rows) ([]types.Issue, error) {
 
 // ListIssues returns all issues
 func (s *StorageImpl) ListIssues() ([]types.Issue, error) {
-	rows, err := s.db.Query("SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at FROM issues ORDER BY created_at DESC")
+	rows, err := s.db.Query("SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at, COALESCE(mutation_hash, '') FROM issues ORDER BY created_at DESC")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return scanIssues(rows)
+	return scanIssues(rows, s.authKey)
+}
+
+func (s *StorageImpl) recomputeAndSaveHMAC(id string) error {
+	if len(s.authKey) == 0 {
+		return nil
+	}
+	var issue types.Issue
+	var createdAtStr, updatedAtStr string
+	query := "SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at FROM issues WHERE id = ?"
+	err := s.db.QueryRow(query, id).Scan(&issue.ID, &issue.Title, &issue.IssueType, &issue.Priority, &issue.Description,
+		&issue.IsBlocked, &issue.IsClosed, &issue.IsClaimed, &issue.Agent, &issue.Assignee, &createdAtStr, &updatedAtStr)
+	if err != nil {
+		return err
+	}
+	hash := ComputeIssueHMAC(s.authKey, &issue)
+	_, err = s.db.Exec("UPDATE issues SET mutation_hash = ? WHERE id = ?", hash, id)
+	return err
 }
 
 // CloseIssue marks an issue as closed
 func (s *StorageImpl) CloseIssue(id string) error {
 	_, err := s.db.Exec("UPDATE issues SET is_closed = ?, updated_at = ? WHERE id = ?",
 		1, time.Now().Format(time.RFC3339), id)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.recomputeAndSaveHMAC(id)
 }
 
 // ReopenIssue marks a closed issue as open (unclosed)
@@ -172,7 +219,7 @@ func (s *StorageImpl) ReopenIssue(id string) error {
 	if rows == 0 {
 		return fmt.Errorf("issue %s is not closed or does not exist", id)
 	}
-	return nil
+	return s.recomputeAndSaveHMAC(id)
 }
 
 // ClaimIssue claims an issue for an agent
@@ -189,7 +236,7 @@ func (s *StorageImpl) ClaimIssue(id, assignee, agent string) error {
 	if rows == 0 {
 		return fmt.Errorf("issue not found: %s", id)
 	}
-	return nil
+	return s.recomputeAndSaveHMAC(id)
 }
 
 // UnclaimIssue releases a claimed issue back to unclaimed state
@@ -210,7 +257,7 @@ func (s *StorageImpl) UnclaimIssue(id string) error {
 		}
 		return fmt.Errorf("issue %s is not claimed", id)
 	}
-	return nil
+	return s.recomputeAndSaveHMAC(id)
 }
 
 // GetDependencies returns all dependencies for an issue
@@ -257,7 +304,7 @@ func (s *StorageImpl) GetDependents(parentID string) ([]string, error) {
 
 // GetDependencyEdges returns the blockers (parents) and dependents (children) for an issue
 func (s *StorageImpl) GetDependencyEdges(issueID string) (*DependencyEdges, error) {
-	blockersQuery := `SELECT p.id, p.title, p.issue_type, p.priority, p.description, p.is_blocked, p.is_closed, p.is_claimed, p.agent, p.assignee, p.created_at, p.updated_at
+	blockersQuery := `SELECT p.id, p.title, p.issue_type, p.priority, p.description, p.is_blocked, p.is_closed, p.is_claimed, p.agent, p.assignee, p.created_at, p.updated_at, COALESCE(p.mutation_hash, '')
 FROM issues p
 JOIN dependencies d ON d.parent_id = p.id
 WHERE d.child_id = ?
@@ -269,12 +316,12 @@ ORDER BY p.priority DESC, p.created_at ASC`
 	}
 	defer blockersRows.Close()
 
-	blockers, err := scanIssues(blockersRows)
+	blockers, err := scanIssues(blockersRows, s.authKey)
 	if err != nil {
 		return nil, fmt.Errorf("scanning blockers: %w", err)
 	}
 
-	dependentsQuery := `SELECT c.id, c.title, c.issue_type, c.priority, c.description, c.is_blocked, c.is_closed, c.is_claimed, c.agent, c.assignee, c.created_at, c.updated_at
+	dependentsQuery := `SELECT c.id, c.title, c.issue_type, c.priority, c.description, c.is_blocked, c.is_closed, c.is_claimed, c.agent, c.assignee, c.created_at, c.updated_at, COALESCE(c.mutation_hash, '')
 FROM issues c
 JOIN dependencies d ON d.child_id = c.id
 WHERE d.parent_id = ?
@@ -286,7 +333,7 @@ ORDER BY c.priority DESC, c.created_at ASC`
 	}
 	defer dependentsRows.Close()
 
-	dependents, err := scanIssues(dependentsRows)
+	dependents, err := scanIssues(dependentsRows, s.authKey)
 	if err != nil {
 		return nil, fmt.Errorf("scanning dependents: %w", err)
 	}
@@ -371,7 +418,7 @@ func (s *StorageImpl) DeleteIssue(id string, cascade bool) error {
 // GetReadyIssues returns ready issues that are open, unclaimed, unblocked,
 // and have no unclosed parent dependencies.
 func (s *StorageImpl) GetReadyIssues() ([]types.Issue, error) {
-	query := `SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at
+	query := `SELECT id, title, issue_type, priority, description, is_blocked, is_closed, is_claimed, agent, assignee, created_at, updated_at, COALESCE(mutation_hash, '')
 	FROM issues
 	WHERE is_closed = 0
 	  AND is_claimed = 0
@@ -389,16 +436,20 @@ func (s *StorageImpl) GetReadyIssues() ([]types.Issue, error) {
 	}
 	defer rows.Close()
 
-	return scanIssues(rows)
+	return scanIssues(rows, s.authKey)
 }
 
 // UpdateIssue updates mutable fields of an existing issue.
 func (s *StorageImpl) UpdateIssue(issue *types.Issue) error {
 	issue.UpdatedAt = time.Now()
+	var hash string
+	if len(s.authKey) > 0 {
+		hash = ComputeIssueHMAC(s.authKey, issue)
+	}
 	res, err := s.db.Exec(`UPDATE issues 
-		SET title = ?, issue_type = ?, priority = ?, description = ?, is_blocked = ?, updated_at = ? 
+		SET title = ?, issue_type = ?, priority = ?, description = ?, is_blocked = ?, updated_at = ?, mutation_hash = ? 
 		WHERE id = ?`,
-		issue.Title, issue.IssueType, issue.Priority, issue.Description, issue.IsBlocked, issue.UpdatedAt.Format(time.RFC3339), issue.ID)
+		issue.Title, issue.IssueType, issue.Priority, issue.Description, issue.IsBlocked, issue.UpdatedAt.Format(time.RFC3339), hash, issue.ID)
 	if err != nil {
 		return fmt.Errorf("updating issue: %w", err)
 	}
@@ -509,5 +560,6 @@ func CreateTables(path string) error {
 	// Idempotent column migrations for existing tables
 	_, _ = db.Exec("ALTER TABLE issues ADD COLUMN agent TEXT DEFAULT '';")
 	_, _ = db.Exec("ALTER TABLE issues ADD COLUMN assignee TEXT DEFAULT '';")
+	_, _ = db.Exec("ALTER TABLE issues ADD COLUMN mutation_hash TEXT DEFAULT '';")
 	return nil
 }
