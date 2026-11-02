@@ -246,3 +246,85 @@ func TestGetIssuePrefixMatch(t *testing.T) {
 	}
 }
 
+func TestStorage_DeleteIssue_And_RemoveDependency(t *testing.T) {
+	tempDir := t.TempDir()
+	dbPath := filepath.Join(tempDir, "test_delete.db")
+	if err := CreateTables(dbPath); err != nil {
+		t.Fatalf("CreateTables failed: %v", err)
+	}
+
+	storage, err := NewStorage(dbPath)
+	if err != nil {
+		t.Fatalf("NewStorage failed: %v", err)
+	}
+	defer storage.Close()
+
+	issueA := &types.Issue{ID: "issue-a", Title: "Parent Task", IssueType: "task", Priority: 1}
+	issueB := &types.Issue{ID: "issue-b", Title: "Child Task", IssueType: "task", Priority: 1}
+	if err := storage.CreateIssue(issueA); err != nil {
+		t.Fatalf("CreateIssue A failed: %v", err)
+	}
+	if err := storage.CreateIssue(issueB); err != nil {
+		t.Fatalf("CreateIssue B failed: %v", err)
+	}
+	if err := storage.AddDependency(issueB.ID, issueA.ID); err != nil {
+		t.Fatalf("AddDependency failed: %v", err)
+	}
+
+	// 1. Deleting issueA without cascade should fail because issueB depends on it
+	if err := storage.DeleteIssue(issueA.ID, false); err == nil {
+		t.Fatal("expected error deleting issue with active dependents when cascade=false, got nil")
+	}
+
+	// 2. RemoveDependency should remove the dependency between B and A
+	if err := storage.RemoveDependency(issueB.ID, issueA.ID); err != nil {
+		t.Fatalf("RemoveDependency failed: %v", err)
+	}
+
+	// Removing non-existent dependency should fail
+	if err := storage.RemoveDependency(issueB.ID, issueA.ID); err == nil {
+		t.Fatal("expected error removing non-existent dependency, got nil")
+	}
+
+	// 3. Deleting issueA without cascade should now succeed
+	if err := storage.DeleteIssue(issueA.ID, false); err != nil {
+		t.Fatalf("DeleteIssue A without cascade failed: %v", err)
+	}
+
+	// Verify issueA is gone
+	if _, err := storage.GetIssue(issueA.ID); err == nil {
+		t.Fatal("expected issueA to be deleted, but GetIssue succeeded")
+	}
+
+	// 4. Test cascade deletion
+	issueC := &types.Issue{ID: "issue-c", Title: "Parent C", IssueType: "task", Priority: 1}
+	issueD := &types.Issue{ID: "issue-d", Title: "Child D", IssueType: "task", Priority: 1}
+	if err := storage.CreateIssue(issueC); err != nil {
+		t.Fatalf("CreateIssue C failed: %v", err)
+	}
+	if err := storage.CreateIssue(issueD); err != nil {
+		t.Fatalf("CreateIssue D failed: %v", err)
+	}
+	if err := storage.AddDependency(issueD.ID, issueC.ID); err != nil {
+		t.Fatalf("AddDependency D->C failed: %v", err)
+	}
+
+	// Deleting C with cascade=true should delete C and remove D->C dependency
+	if err := storage.DeleteIssue(issueC.ID, true); err != nil {
+		t.Fatalf("DeleteIssue C with cascade failed: %v", err)
+	}
+	depsD, err := storage.GetDependencies(issueD.ID)
+	if err != nil {
+		t.Fatalf("GetDependencies D failed: %v", err)
+	}
+	if len(depsD) != 0 {
+		t.Fatalf("expected 0 dependencies for D after cascade, got %d", len(depsD))
+	}
+
+	// 5. Deleting nonexistent issue should fail
+	if err := storage.DeleteIssue("non-existent-id", false); err == nil {
+		t.Fatal("expected error deleting nonexistent issue, got nil")
+	}
+}
+
+

@@ -25,6 +25,8 @@ type Storage interface {
 	GetDependencyEdges(issueID string) (*DependencyEdges, error)
 	GetReadyIssues() ([]types.Issue, error)
 	AddDependency(childID, parentID string) error
+	RemoveDependency(childID, parentID string) error
+	DeleteIssue(id string, cascade bool) error
 	Close() error
 }
 
@@ -277,6 +279,71 @@ ORDER BY c.priority DESC, c.created_at ASC`
 func (s *StorageImpl) AddDependency(childID, parentID string) error {
 	_, err := s.db.Exec("INSERT INTO dependencies (child_id, parent_id) VALUES (?, ?)", childID, parentID)
 	return err
+}
+
+// RemoveDependency removes a specific dependency relationship between child and parent.
+func (s *StorageImpl) RemoveDependency(childID, parentID string) error {
+	res, err := s.db.Exec("DELETE FROM dependencies WHERE child_id = ? AND parent_id = ?", childID, parentID)
+	if err != nil {
+		return fmt.Errorf("deleting dependency: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("dependency not found: %s -> %s", childID, parentID)
+	}
+	return nil
+}
+
+// DeleteIssue deletes an issue by ID.
+// If cascade is false and other issues depend on this issue, it returns an error.
+// If cascade is true, all related dependency rows (both parent and child) are also deleted.
+func (s *StorageImpl) DeleteIssue(id string, cascade bool) error {
+	var exists int
+	err := s.db.QueryRow("SELECT COUNT(1) FROM issues WHERE id = ?", id).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("checking issue existence: %w", err)
+	}
+	if exists == 0 {
+		return fmt.Errorf("issue not found: %s", id)
+	}
+
+	if !cascade {
+		var dependentCount int
+		err := s.db.QueryRow("SELECT COUNT(1) FROM dependencies WHERE parent_id = ?", id).Scan(&dependentCount)
+		if err != nil {
+			return fmt.Errorf("checking dependents: %w", err)
+		}
+		if dependentCount > 0 {
+			return fmt.Errorf("cannot delete issue %s: %d issues depend on it", id, dependentCount)
+		}
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec("DELETE FROM dependencies WHERE child_id = ? OR parent_id = ?", id, id); err != nil {
+		return fmt.Errorf("deleting dependencies: %w", err)
+	}
+
+	res, err := tx.Exec("DELETE FROM issues WHERE id = ?", id)
+	if err != nil {
+		return fmt.Errorf("deleting issue: %w", err)
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("issue not found: %s", id)
+	}
+
+	return tx.Commit()
 }
 
 // GetReadyIssues returns ready issues that are open, unclaimed, unblocked,
