@@ -6,7 +6,7 @@ Command-line interface and subcommand implementations for the `sbeads` / `bd` to
 
 ## Ownership
 
-- CLI commands: `claim`, `close`, `context`, `create`, `dep`, `list`, `ready`, `root`, `show`, `unclaim`, and `version`
+- CLI commands: `claim`, `close`, `context`, `create`, `delete` (aliases `del`, `rm`), `dep` (subcommands `add`, `list`, `rm`), `list`, `ready`, `root`, `show`, `unclaim`, and `version`
 - Flag parsing and validation
 - Database ancestor discovery for `.sbeads/sbeads.db`
 - Formatted console output, status badges, and CLI test helpers
@@ -18,6 +18,8 @@ Command-line interface and subcommand implementations for the `sbeads` / `bd` to
 - Database location follows resolution precedence: explicit flag, `SBEADS_DB` / `SBEADS_DIR` environment variables, ancestor search for `.sbeads/`, falling back to local `.sbeads/sbeads.db`
 - Status badges follow canonical representations: `[O]` for OPEN, `[C]` for CLAIMED, `[B]` for BLOCKED, `[X]` for CLOSED
 - Non-zero exit code returned on application errors
+- Delete command refuses to remove an issue if active dependent issues exist unless --force or --cascade is passed
+- Create command determines issue prefix using flag --prefix, environment variable SBEADS_PREFIX, or active git repository folder name
 
 ## Work Guidance
 

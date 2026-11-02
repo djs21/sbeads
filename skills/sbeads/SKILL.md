@@ -206,6 +206,18 @@ sbeads dep remove "$CHILD_ISSUE_ID" "$PARENT_ISSUE_ID"
 sbeads close "$ISSUE_ID"
 ```
 
+### 9. Deleting Issues (del / rm)
+```bash
+# Delete an issue (fails if other active issues depend on it)
+sbeads delete "$ISSUE_ID"
+# Or using aliases:
+sbeads rm "$ISSUE_ID"
+sbeads del "$ISSUE_ID"
+
+# Force delete with cascade to clear all related dependency edges:
+sbeads delete -f "$ISSUE_ID"
+```
+
 ---
 
 ## Output Parsing Patterns
@@ -286,7 +298,7 @@ sbeads dep add "$VERIFY" "$TASK_B"
 | `cannot depend on self` | Passing the same ID as child and parent | Check script variables; child and parent must be distinct. |
 | `dependency already exists`| Edge already exists in graph | Safe to ignore or continue; the dependency relationship is already established. |
 | `--title is required` | Missing title flag or argument | Provide title either via `--title "<text>"` or as first positional argument. |
-| `priority must be non-negative` | Negative priority value | Ensure priority is an integer >= 0 (standard range 0–10). |
+| `priority must be non-negative` | Negative priority value | Ensure priority is an integer >= 0 (standard range 0 to 10). |
 
 ---
 
