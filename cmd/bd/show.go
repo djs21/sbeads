@@ -31,6 +31,9 @@ func NewShowCmd() *cobra.Command {
 
 			issue, err := appCtx.Storage.GetIssue(id)
 			if err != nil {
+				if strings.Contains(err.Error(), "tamper detected") {
+					return err
+				}
 				return fmt.Errorf("issue not found: %s", id)
 			}
 

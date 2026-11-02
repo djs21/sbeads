@@ -32,7 +32,11 @@ func EnsureAgentsOnboarding(workspaceDir string) (bool, error) {
 
 	root := findGitRoot(workspaceDir)
 	if root == "" {
-		root = workspaceDir
+		if filepath.Base(workspaceDir) == ".sbeads" {
+			root = filepath.Dir(workspaceDir)
+		} else {
+			root = workspaceDir
+		}
 	}
 
 	agentsPath := filepath.Join(root, "AGENTS.md")
