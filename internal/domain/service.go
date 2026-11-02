@@ -95,3 +95,8 @@ func (s *ServiceDomain) Delete(id string, cascade bool) error {
 func (s *ServiceDomain) RemoveDependency(childID, parentID string) error {
 	return s.dependency.RemoveDependency(childID, parentID)
 }
+
+// Update updates an issue with new field values
+func (s *ServiceDomain) Update(id string, title, issueType, description *string, priority, blocked *int) (*types.Issue, error) {
+	return s.issue.UpdateIssue(id, title, issueType, description, priority, blocked)
+}

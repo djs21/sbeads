@@ -77,6 +77,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(NewListCmd())
 	rootCmd.AddCommand(NewVersionCmd())
 	rootCmd.AddCommand(NewDeleteCmd())
+	rootCmd.AddCommand(NewUpdateCmd())
 
 	return rootCmd
 }

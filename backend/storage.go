@@ -27,6 +27,7 @@ type Storage interface {
 	AddDependency(childID, parentID string) error
 	RemoveDependency(childID, parentID string) error
 	DeleteIssue(id string, cascade bool) error
+	UpdateIssue(issue *types.Issue) error
 	Close() error
 }
 
@@ -368,6 +369,26 @@ func (s *StorageImpl) GetReadyIssues() ([]types.Issue, error) {
 	defer rows.Close()
 
 	return scanIssues(rows)
+}
+
+// UpdateIssue updates mutable fields of an existing issue.
+func (s *StorageImpl) UpdateIssue(issue *types.Issue) error {
+	issue.UpdatedAt = time.Now()
+	res, err := s.db.Exec(`UPDATE issues 
+		SET title = ?, issue_type = ?, priority = ?, description = ?, is_blocked = ?, updated_at = ? 
+		WHERE id = ?`,
+		issue.Title, issue.IssueType, issue.Priority, issue.Description, issue.IsBlocked, issue.UpdatedAt.Format(time.RFC3339), issue.ID)
+	if err != nil {
+		return fmt.Errorf("updating issue: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("checking affected rows: %w", err)
+	}
+	if rows == 0 {
+		return fmt.Errorf("issue not found: %s", issue.ID)
+	}
+	return nil
 }
 
 // Close closes the database connection

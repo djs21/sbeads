@@ -125,3 +125,45 @@ func (d *IssueDomain) DeleteIssue(id string, cascade bool) error {
 	}
 	return d.storage.DeleteIssue(issue.ID, cascade)
 }
+
+// UpdateIssue updates specific fields of an issue
+func (d *IssueDomain) UpdateIssue(id string, title, issueType, description *string, priority, blocked *int) (*types.Issue, error) {
+	issue, err := d.storage.GetIssue(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if title != nil {
+		trimmed := strings.TrimSpace(*title)
+		if trimmed == "" {
+			return nil, ErrEmptyTitle
+		}
+		issue.Title = trimmed
+	}
+	if issueType != nil {
+		trimmed := strings.TrimSpace(*issueType)
+		if trimmed != "" {
+			issue.IssueType = trimmed
+		}
+	}
+	if description != nil {
+		issue.Description = *description
+	}
+	if priority != nil {
+		if *priority < 0 {
+			return nil, ErrNegativePriority
+		}
+		issue.Priority = *priority
+	}
+	if blocked != nil {
+		if *blocked != 0 && *blocked != 1 {
+			return nil, ErrInvalidBlocked
+		}
+		issue.IsBlocked = *blocked
+	}
+
+	if err := d.storage.UpdateIssue(issue); err != nil {
+		return nil, err
+	}
+	return issue, nil
+}
