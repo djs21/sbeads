@@ -51,6 +51,11 @@ func (s *ServiceDomain) Close(id string) (*types.Issue, error) {
 	return s.issue.CloseIssue(id)
 }
 
+// Reopen reopens a closed issue
+func (s *ServiceDomain) Reopen(id string) (*types.Issue, error) {
+	return s.issue.ReopenIssue(id)
+}
+
 // Ready returns all ready issues
 func (s *ServiceDomain) Ready() ([]types.Issue, error) {
 	return s.issue.ReadyIssues()

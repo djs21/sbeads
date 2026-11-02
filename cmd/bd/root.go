@@ -72,12 +72,14 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(NewClaimCmd())
 	rootCmd.AddCommand(NewUnclaimCmd())
 	rootCmd.AddCommand(NewCloseCmd())
+	rootCmd.AddCommand(NewReopenCmd())
 	rootCmd.AddCommand(NewShowCmd())
 	rootCmd.AddCommand(NewDepCmd())
 	rootCmd.AddCommand(NewListCmd())
 	rootCmd.AddCommand(NewVersionCmd())
 	rootCmd.AddCommand(NewDeleteCmd())
 	rootCmd.AddCommand(NewUpdateCmd())
+	rootCmd.AddCommand(NewExportCmd())
 
 	return rootCmd
 }

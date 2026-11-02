@@ -2,7 +2,9 @@ package backend
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +20,7 @@ type Storage interface {
 	GetIssue(id string) (*types.Issue, error)
 	ListIssues() ([]types.Issue, error)
 	CloseIssue(id string) error
+	ReopenIssue(id string) error
 	ClaimIssue(id, assignee, agent string) error
 	UnclaimIssue(id string) error
 	GetDependencies(issueID string) ([]string, error)
@@ -28,6 +31,7 @@ type Storage interface {
 	RemoveDependency(childID, parentID string) error
 	DeleteIssue(id string, cascade bool) error
 	UpdateIssue(issue *types.Issue) error
+	ExportJSONL(w io.Writer) error
 	Close() error
 }
 
@@ -152,6 +156,23 @@ func (s *StorageImpl) CloseIssue(id string) error {
 	_, err := s.db.Exec("UPDATE issues SET is_closed = ?, updated_at = ? WHERE id = ?",
 		1, time.Now().Format(time.RFC3339), id)
 	return err
+}
+
+// ReopenIssue marks a closed issue as open (unclosed)
+func (s *StorageImpl) ReopenIssue(id string) error {
+	res, err := s.db.Exec("UPDATE issues SET is_closed = 0, updated_at = ? WHERE id = ? AND is_closed = 1",
+		time.Now().Format(time.RFC3339), id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("issue %s is not closed or does not exist", id)
+	}
+	return nil
 }
 
 // ClaimIssue claims an issue for an agent
@@ -389,6 +410,59 @@ func (s *StorageImpl) UpdateIssue(issue *types.Issue) error {
 		return fmt.Errorf("issue not found: %s", issue.ID)
 	}
 	return nil
+}
+
+// ExportJSONL writes all issues and dependency rows formatted as line-by-line JSON.
+func (s *StorageImpl) ExportJSONL(w io.Writer) error {
+	issues, err := s.ListIssues()
+	if err != nil {
+		return fmt.Errorf("listing issues for export: %w", err)
+	}
+
+	encoder := json.NewEncoder(w)
+	for _, iss := range issues {
+		record := map[string]interface{}{
+			"record_type": "issue",
+			"id":          iss.ID,
+			"title":       iss.Title,
+			"issue_type":  iss.IssueType,
+			"priority":    iss.Priority,
+			"description": iss.Description,
+			"is_blocked":  iss.IsBlocked,
+			"is_closed":   iss.IsClosed,
+			"is_claimed":  iss.IsClaimed,
+			"agent":       iss.Agent,
+			"assignee":    iss.Assignee,
+			"created_at":  iss.CreatedAt.Format(time.RFC3339),
+			"updated_at":  iss.UpdatedAt.Format(time.RFC3339),
+		}
+		if err := encoder.Encode(record); err != nil {
+			return fmt.Errorf("encoding issue %s: %w", iss.ID, err)
+		}
+	}
+
+	rows, err := s.db.Query("SELECT child_id, parent_id FROM dependencies ORDER BY child_id, parent_id")
+	if err != nil {
+		return fmt.Errorf("querying dependencies for export: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var childID, parentID string
+		if err := rows.Scan(&childID, &parentID); err != nil {
+			return fmt.Errorf("scanning dependency for export: %w", err)
+		}
+		record := map[string]interface{}{
+			"record_type": "dependency",
+			"child_id":    childID,
+			"parent_id":   parentID,
+		}
+		if err := encoder.Encode(record); err != nil {
+			return fmt.Errorf("encoding dependency: %w", err)
+		}
+	}
+
+	return rows.Err()
 }
 
 // Close closes the database connection
