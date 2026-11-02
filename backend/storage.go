@@ -449,9 +449,9 @@ func (s *StorageImpl) UpdateIssue(issue *types.Issue) error {
 		hash = ComputeIssueHMAC(s.authKey, issue)
 	}
 	res, err := s.db.Exec(`UPDATE issues 
-		SET title = ?, issue_type = ?, priority = ?, description = ?, is_blocked = ?, updated_at = ?, mutation_hash = ? 
+		SET title = ?, issue_type = ?, priority = ?, description = ?, is_blocked = ?, is_closed = ?, is_claimed = ?, agent = ?, assignee = ?, updated_at = ?, mutation_hash = ? 
 		WHERE id = ?`,
-		issue.Title, issue.IssueType, issue.Priority, issue.Description, issue.IsBlocked, issue.UpdatedAt.Format(time.RFC3339), hash, issue.ID)
+		issue.Title, issue.IssueType, issue.Priority, issue.Description, issue.IsBlocked, issue.IsClosed, issue.IsClaimed, issue.Agent, issue.Assignee, issue.UpdatedAt.Format(time.RFC3339), hash, issue.ID)
 	if err != nil {
 		return fmt.Errorf("updating issue: %w", err)
 	}
