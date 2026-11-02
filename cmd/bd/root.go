@@ -84,6 +84,8 @@ func NewRootCmd() *cobra.Command {
 	rootCmd.AddCommand(NewUpdateCmd())
 	rootCmd.AddCommand(NewExportCmd())
 	rootCmd.AddCommand(NewImportCmd())
+	rootCmd.AddCommand(NewBlockCmd())
+	rootCmd.AddCommand(NewUnblockCmd())
 
 	return rootCmd
 }
