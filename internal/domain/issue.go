@@ -66,6 +66,27 @@ func (d *IssueDomain) CloseIssue(id string) (*types.Issue, error) {
 	return issue, nil
 }
 
+// ReopenIssue reopens a closed issue
+func (d *IssueDomain) ReopenIssue(id string) (*types.Issue, error) {
+	issue, err := d.storage.GetIssue(id)
+	if err != nil {
+		return nil, err
+	}
+
+	if issue.IsClosed == 0 {
+		return issue, ErrNotClosed
+	}
+
+	err = d.storage.ReopenIssue(id)
+	if err != nil {
+		return nil, err
+	}
+
+	issue.IsClosed = 0
+	issue.UpdatedAt = time.Now()
+	return issue, nil
+}
+
 // ReadyIssues lists all actionable ready issues (unblocked, unclaimed, unclosed, and dependencies resolved)
 func (d *IssueDomain) ReadyIssues() ([]types.Issue, error) {
 	return d.storage.GetReadyIssues()

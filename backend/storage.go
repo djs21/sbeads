@@ -20,6 +20,7 @@ type Storage interface {
 	GetIssue(id string) (*types.Issue, error)
 	ListIssues() ([]types.Issue, error)
 	CloseIssue(id string) error
+	ReopenIssue(id string) error
 	ClaimIssue(id, assignee, agent string) error
 	UnclaimIssue(id string) error
 	GetDependencies(issueID string) ([]string, error)
@@ -155,6 +156,23 @@ func (s *StorageImpl) CloseIssue(id string) error {
 	_, err := s.db.Exec("UPDATE issues SET is_closed = ?, updated_at = ? WHERE id = ?",
 		1, time.Now().Format(time.RFC3339), id)
 	return err
+}
+
+// ReopenIssue marks a closed issue as open (unclosed)
+func (s *StorageImpl) ReopenIssue(id string) error {
+	res, err := s.db.Exec("UPDATE issues SET is_closed = 0, updated_at = ? WHERE id = ? AND is_closed = 1",
+		time.Now().Format(time.RFC3339), id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("issue %s is not closed or does not exist", id)
+	}
+	return nil
 }
 
 // ClaimIssue claims an issue for an agent

@@ -12,6 +12,7 @@ var (
 	ErrEmptyID           = errors.New("id cannot be empty")
 	ErrNotClaimed        = errors.New("issue is not claimed")
 	ErrInvalidBlocked    = errors.New("blocked state must be 0 or 1")
+	ErrNotClosed         = errors.New("issue is not closed")
 
 	// Dependency errors
 	ErrSelfDependency    = errors.New("cannot depend on self")
