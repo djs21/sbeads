@@ -80,6 +80,8 @@ Default section order:
 - Projects support dynamic prefix naming based on git root folder, SBEADS_PREFIX, or custom `--prefix` flag
 - Issue deletion is supported via `delete` (aliases `rm`, `del`) with dependency safety guards and `--force` cascade
 - When deleting dependency edges, use `dep rm` (aliases `remove`, `del`)
+- Database integrity: All issue rows are signed using HMAC-SHA256 via `.sbeads/auth.key` (with strict 0600 file permissions); raw external modifications to SQLite are rejected
+- Remote synchronization: Use `sbeads export` and `sbeads import` with `.sbeads/issues.jsonl` for clean, merge-friendly multi-machine Git workflows
 
 ## Child DOX Index
 
@@ -92,3 +94,14 @@ Direct children and their ownership scopes:
 - [skills/AGENTS.md](skills/AGENTS.md): Autonomous AI agent skill definitions and operational protocols
 
 Root scope retains repository-wide governance, root build scripts (`build.sh`), Go module definitions (`go.mod`, `go.sum`), project license, and top-level README.
+
+## Task Tracking with sbeads
+
+This repository uses sbeads for lightweight, dependency-aware local issue tracking and multi-agent coordination.
+
+- **Check ready tasks**: Run `sbeads ready` to view unblocked tasks.
+- **Claim a task**: Run `sbeads claim <id> --agent <name>` before working.
+- **Release a claim**: Run `sbeads unclaim <id>` if aborted or blocked.
+- **Inspect details**: Run `sbeads show <id>` to view computed status and dependency edges.
+- **Close completed work**: Run `sbeads close <id>` after tests pass.
+- **Mutations & safety**: Use `sbeads update`, `sbeads reopen`, `sbeads delete`, and `sbeads dep add/rm`. Never modify database SQLite files directly.

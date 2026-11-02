@@ -528,7 +528,66 @@ Deleted issue: sbeads-k7a
 
 ---
 
-### 10. `version`
+### 10. `update`
+Updates mutable fields of an issue ad-hoc.
+
+```bash
+sbeads update [flags] [issue-id]
+```
+
+**Options & Flags:**
+- `-t`, `--title <string>`: New title.
+- `-y`, `--type`, `--issue-type <string>`: New issue type.
+- `-p`, `--priority <int>`: New priority rating (non-negative).
+- `-d`, `--description <string>`: New description.
+- `-b`, `--blocked <0|1>`: Set blocked state.
+
+---
+
+### 11. `reopen`
+Reopens an issue that was previously closed (`is_closed = 0`).
+
+```bash
+sbeads reopen [issue-id]
+```
+
+---
+
+### 12. `block` & `unblock`
+Manually mark issues as blocked or unblocked without altering dependency edges.
+
+```bash
+sbeads block [issue-id]
+sbeads unblock [issue-id]
+```
+
+---
+
+### 13. `assign`
+Assigns an issue to a user or agent without unclaiming.
+
+```bash
+sbeads assign [issue-id] --assignee <user> --agent <agent-name>
+```
+
+---
+
+### 14. `export` & `import` (Remote Sync)
+Exports and imports tasks to/from a merge-friendly line-by-line JSONL file (`.sbeads/issues.jsonl`) for Git collaboration.
+
+```bash
+# Export local SQLite database to JSONL
+sbeads export [-o .sbeads/issues.jsonl]
+
+# Import JSONL into local SQLite database
+sbeads import [-i .sbeads/issues.jsonl]
+# Or using alias:
+sbeads sync
+```
+
+---
+
+### 15. `version`
 Prints the application version string.
 
 ```bash

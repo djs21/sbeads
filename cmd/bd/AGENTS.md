@@ -6,7 +6,7 @@ Command-line interface and subcommand implementations for the `sbeads` / `bd` to
 
 ## Ownership
 
-- CLI commands: `claim`, `close`, `context`, `create`, `delete` (aliases `del`, `rm`), `dep` (subcommands `add`, `list`, `rm`), `list`, `ready`, `root`, `show`, `unclaim`, and `version`
+- CLI commands: `assign`, `block`, `claim`, `close`, `context`, `create`, `delete` (aliases `del`, `rm`), `dep` (subcommands `add`, `list`, `rm`), `export`, `import` (alias `sync`), `list`, `ready`, `reopen`, `root`, `show`, `unblock`, `unclaim`, `update`, and `version`
 - Flag parsing and validation
 - Database ancestor discovery for `.sbeads/sbeads.db`
 - Formatted console output, status badges, and CLI test helpers
@@ -22,6 +22,7 @@ Command-line interface and subcommand implementations for the `sbeads` / `bd` to
 - Non-zero exit code returned on application errors
 - Delete command refuses to remove an issue if active dependent issues exist unless --force or --cascade is passed
 - Create command determines issue prefix using flag --prefix, environment variable SBEADS_PREFIX, or active git repository folder name
+- Mutation commands (update, reopen, block, unblock, assign) re-compute HMAC-SHA256 signatures to guarantee database integrity
 
 ## Work Guidance
 
