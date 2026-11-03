@@ -61,9 +61,7 @@ func NewRootCmd() *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cmd.Println("sbeads - Minimal issue tracker")
-			cmd.Println("Usage: sbeads <command> [options]")
-			cmd.Println("Commands: create, ready, claim, unclaim, close, show, dep, list, version")
+			_ = cmd.Help()
 			return errors.New("command required")
 		},
 	}

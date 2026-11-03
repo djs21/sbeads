@@ -15,7 +15,7 @@ func TestRootCommand(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error when no arguments provided, got nil")
 		}
-		if !strings.Contains(out, "Usage: sbeads") {
+		if !strings.Contains(out, "Usage:") || !strings.Contains(out, "Available Commands:") {
 			t.Errorf("expected usage output, got: %s", out)
 		}
 	})
