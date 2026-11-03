@@ -23,6 +23,7 @@ Command-line interface and subcommand implementations for the `sbeads` / `bd` to
 - Delete command refuses to remove an issue if active dependent issues exist unless --force or --cascade is passed
 - Create command determines issue prefix using flag --prefix, environment variable SBEADS_PREFIX, or active git repository folder name
 - Mutation commands (update, reopen, block, unblock, assign) re-compute HMAC-SHA256 signatures to guarantee database integrity
+- Root command invocation without arguments dynamically renders complete Cobra help with all registered subcommands
 
 ## Work Guidance
 

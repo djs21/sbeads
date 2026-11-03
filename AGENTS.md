@@ -80,7 +80,7 @@ Default section order:
 - Projects support dynamic prefix naming based on git root folder, SBEADS_PREFIX, or custom `--prefix` flag
 - Issue deletion is supported via `delete` (aliases `rm`, `del`) with dependency safety guards and `--force` cascade
 - When deleting dependency edges, use `dep rm` (aliases `remove`, `del`)
-- Database integrity: All issue rows are signed using HMAC-SHA256 via `.sbeads/auth.key` (with strict 0600 file permissions); raw external modifications to SQLite are rejected
+- Database integrity: All issue rows are signed using HMAC-SHA256 via `.sbeads/auth.key` (with strict 0600 file permissions). Raw external modifications to SQLite are rejected.
 - Remote synchronization: Use `sbeads export` and `sbeads import` with `.sbeads/issues.jsonl` for clean, merge-friendly multi-machine Git workflows
 
 ## Child DOX Index

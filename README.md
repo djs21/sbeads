@@ -151,7 +151,7 @@ sbeads ready  # uses /shared/path/swarm.db directly
 
 ## CLI Command Reference
 
-All subcommands support both explicit flags and positional shorthand where intuitive.
+All subcommands support both explicit flags and positional shorthand where intuitive. Invoking `sbeads` without arguments or with `--help` dynamically displays the full list of available subcommands, flags, and descriptions.
 
 ### 1. `create`
 Creates a new issue in the tracker.
