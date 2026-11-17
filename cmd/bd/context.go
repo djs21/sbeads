@@ -60,19 +60,34 @@ func findDatabasePath(startDir string) string {
 	if err != nil {
 		curr = startDir
 	}
-	for {
-		candidate := filepath.Join(curr, ".sbeads")
+
+	// Discovery is scoped to a single project. Outside a git repository the
+	// search never leaves startDir, so a stray .sbeads/ in a parent directory
+	// cannot hijack the database. Inside a repository the search stops at the
+	// nearest .git entry, so .sbeads/ directories above it are never used.
+	gitRoot := domain.FindGitRoot(curr)
+	if gitRoot == "" {
+		return filepath.Join(curr, ".sbeads", "sbeads.db")
+	}
+
+	for dir := curr; ; dir = filepath.Dir(dir) {
+		candidate := filepath.Join(dir, ".sbeads")
 		if fi, err := os.Stat(candidate); err == nil && fi.IsDir() {
 			return filepath.Join(candidate, "sbeads.db")
 		}
-		parent := filepath.Dir(curr)
-		if parent == curr {
+		if dir == gitRoot {
 			break
 		}
-		curr = parent
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
 	}
 
-	return filepath.Join(".sbeads", "sbeads.db")
+	// All worktrees of one repository share a single database at the main
+	// working tree root; a .sbeads/ inside a worktree (returned above) is a
+	// deliberate per-worktree override.
+	return filepath.Join(domain.MainWorktreeRoot(curr), ".sbeads", "sbeads.db")
 }
 
 func FindDatabasePath(startDir string) string {

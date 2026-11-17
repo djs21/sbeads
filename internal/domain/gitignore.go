@@ -28,7 +28,7 @@ func EnsureGitignoreProtection(workspaceDir string) (bool, error) {
 	}
 
 	// Locate git root
-	gitRoot := findGitRoot(workspaceDir)
+	gitRoot := FindGitRoot(workspaceDir)
 	if gitRoot == "" {
 		// Not inside a git repository; no gitignore to manage
 		return false, nil
@@ -84,7 +84,10 @@ func EnsureGitignoreProtection(workspaceDir string) (bool, error) {
 	return true, nil
 }
 
-func findGitRoot(startDir string) string {
+// FindGitRoot walks up from startDir and returns the first directory containing
+// a .git entry (directory, or regular file for worktrees and submodules).
+// It returns an empty string when startDir is not inside a git repository.
+func FindGitRoot(startDir string) string {
 	curr := filepath.Clean(startDir)
 	for {
 		if stat, err := os.Stat(filepath.Join(curr, ".git")); err == nil {
@@ -99,4 +102,61 @@ func findGitRoot(startDir string) string {
 		curr = parent
 	}
 	return ""
+}
+
+// MainWorktreeRoot resolves the main working tree root for the repository
+// containing startDir. For a normal repository (.git directory) and a
+// submodule (.git file whose gitdir has no commondir marker) it returns the
+// nearest root holding the .git entry. For a git worktree (.git file whose
+// gitdir carries a commondir marker) it returns the main working tree root
+// shared by all worktrees of the same repository. Any parse failure degrades
+// to the nearest root; this helper never reports an error.
+func MainWorktreeRoot(startDir string) string {
+	root := FindGitRoot(startDir)
+	if root == "" {
+		return ""
+	}
+
+	gitPath := filepath.Join(root, ".git")
+	info, err := os.Stat(gitPath)
+	if err != nil || info.IsDir() {
+		return root
+	}
+
+	// Regular file: worktree or submodule pointer of the form "gitdir: <path>".
+	data, err := os.ReadFile(gitPath)
+	if err != nil {
+		return root
+	}
+	line := strings.TrimSpace(strings.SplitN(string(data), "\n", 2)[0])
+	const marker = "gitdir:"
+	if !strings.HasPrefix(line, marker) {
+		return root
+	}
+	target := strings.TrimSpace(strings.TrimPrefix(line, marker))
+	if target == "" {
+		return root
+	}
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(root, target)
+	}
+
+	// A commondir file marks a worktree; a submodule gitdir has no such file.
+	commonData, err := os.ReadFile(filepath.Join(target, "commondir"))
+	if err != nil {
+		return root
+	}
+	common := strings.TrimSpace(string(commonData))
+	if common == "" {
+		return root
+	}
+	if !filepath.IsAbs(common) {
+		common = filepath.Join(filepath.Dir(target), common)
+	}
+	common = filepath.Clean(common)
+	if filepath.Base(common) == ".git" {
+		return filepath.Dir(common)
+	}
+	// Bare repository: the shared workspace lives next to the bare git dir.
+	return common
 }

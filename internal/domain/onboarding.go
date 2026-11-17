@@ -30,7 +30,7 @@ func EnsureAgentsOnboarding(workspaceDir string) (bool, error) {
 		}
 	}
 
-	root := findGitRoot(workspaceDir)
+	root := FindGitRoot(workspaceDir)
 	if root == "" {
 		if filepath.Base(workspaceDir) == ".sbeads" {
 			root = filepath.Dir(workspaceDir)

@@ -124,6 +124,9 @@ func TestDatabaseResolutionAndAncestorDiscovery(t *testing.T) {
 
 	t.Run("Ancestor discovery finds .sbeads in parent directory", func(t *testing.T) {
 		root := t.TempDir()
+		if err := os.Mkdir(filepath.Join(root, ".git"), 0755); err != nil {
+			t.Fatalf("failed to create .git: %v", err)
+		}
 		sbeadsDir := filepath.Join(root, ".sbeads")
 		if err := os.Mkdir(sbeadsDir, 0755); err != nil {
 			t.Fatalf("failed to create .sbeads: %v", err)
@@ -148,8 +151,59 @@ func TestDatabaseResolutionAndAncestorDiscovery(t *testing.T) {
 		t.Setenv("SBEADS_DIR", "")
 		t.Setenv("SBEADS_DB", "")
 
-		got := findDatabasePath(t.TempDir())
-		expected := filepath.Join(".sbeads", "sbeads.db")
+		startDir := t.TempDir()
+		got := findDatabasePath(startDir)
+		expected := filepath.Join(startDir, ".sbeads", "sbeads.db")
+		if got != expected {
+			t.Errorf("expected %s, got %s", expected, got)
+		}
+	})
+
+	t.Run("Parent .sbeads is ignored when start dir is outside any git repo", func(t *testing.T) {
+		parent := t.TempDir()
+		strayDir := filepath.Join(parent, ".sbeads")
+		if err := os.Mkdir(strayDir, 0755); err != nil {
+			t.Fatalf("failed to create stray .sbeads: %v", err)
+		}
+
+		child := filepath.Join(parent, "child")
+		if err := os.Mkdir(child, 0755); err != nil {
+			t.Fatalf("failed to create child dir: %v", err)
+		}
+
+		t.Setenv("SBEADS_DIR", "")
+		t.Setenv("SBEADS_DB", "")
+
+		got := findDatabasePath(child)
+		expected := filepath.Join(child, ".sbeads", "sbeads.db")
+		if got != expected {
+			t.Errorf("expected %s, got %s", expected, got)
+		}
+		if got == filepath.Join(strayDir, "sbeads.db") {
+			t.Errorf("escaped to parent .sbeads: %s", got)
+		}
+	})
+
+	t.Run("Ancestor walk stops at git root", func(t *testing.T) {
+		parent := t.TempDir()
+		if err := os.Mkdir(filepath.Join(parent, ".sbeads"), 0755); err != nil {
+			t.Fatalf("failed to create stray .sbeads: %v", err)
+		}
+
+		repo := filepath.Join(parent, "repo")
+		if err := os.MkdirAll(filepath.Join(repo, ".git"), 0755); err != nil {
+			t.Fatalf("failed to create repo .git: %v", err)
+		}
+		sub := filepath.Join(repo, "sub")
+		if err := os.MkdirAll(sub, 0755); err != nil {
+			t.Fatalf("failed to create repo subdir: %v", err)
+		}
+
+		t.Setenv("SBEADS_DIR", "")
+		t.Setenv("SBEADS_DB", "")
+
+		got := findDatabasePath(sub)
+		expected := filepath.Join(repo, ".sbeads", "sbeads.db")
 		if got != expected {
 			t.Errorf("expected %s, got %s", expected, got)
 		}

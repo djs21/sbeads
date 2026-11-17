@@ -11,6 +11,7 @@ Business logic, issue lifecycle transitions, dependency graph resolution, and do
 - Issue claim and unclaim validation
 - Issue deletion safety validation and cascade handling
 - Project prefix resolution and sanitization (`DetectProjectPrefix`, `CleanPrefix`)
+- Git repository root discovery (`FindGitRoot`) and main working tree resolution for worktrees (`MainWorktreeRoot`), shared by prefix resolution, `.gitignore` protection, `AGENTS.md` onboarding, and CLI database discovery
 - Dependency cycle detection and blocking rules
 - Domain errors (`ErrIssueNotFound`, `ErrCircularDependency`, `ErrSelfDependency`, `ErrParentNotClosed`)
 

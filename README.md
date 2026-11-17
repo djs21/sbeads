@@ -12,7 +12,7 @@ Modern autonomous agent swarms and multi-agent development workflows require str
 - **Dependency Graphs**: First-class parent/child issue dependencies (`sbeads dep add`) block dependent tasks until prerequisite tasks finish.
 - **Fast Ready Queues**: Query unblocked, actionable issues instantly (`sbeads ready`) to drive autonomous loops.
 - **Deterministic Storage**: Local SQLite database stored at `.sbeads/sbeads.db`. The containing `.sbeads/` directory is automatically created.
-- **Smart Ancestor Discovery**: Like git or beads, `sbeads` walks upwards from nested subdirectories to discover the nearest `.sbeads/` directory, letting you run CLI commands anywhere inside your project tree.
+- **Project-Scoped Discovery**: Like git, `sbeads` scopes its search to the current repository. From a nested subdirectory it walks upwards only as far as the git root to find the nearest `.sbeads/` directory. Outside a git repository it never looks at parent directories, so an unrelated `.sbeads/` higher up can never hijack your database. Git worktrees of one repository share a single `.sbeads/` at the main working tree root; a `.sbeads/` inside a worktree root is a deliberate per-worktree override.
 
 ---
 
@@ -32,7 +32,7 @@ sbeads/
 ### Storage Engine: Pure-Go SQLite in WAL Mode
 - **Database Location (`.sbeads/sbeads.db`)**: By default, issues and dependencies are stored in `.sbeads/sbeads.db`. Both `NewStorage` and `CreateTables` automatically invoke `os.MkdirAll` to create `.sbeads/` (with permissions `0755`) if it does not exist.
 - **Pure-Go Architecture (`CGO_ENABLED=0`)**: Backed by `modernc.org/sqlite`, `sbeads` requires zero C toolchains (`gcc`, `clang`, or `musl`) and compiles into 100% static, cross-platform standalone binaries for Linux, macOS, and Windows.
-- **Ancestor Discovery**: When executed from any nested subdirectory, `sbeads` searches upward through parent directories to locate an existing `.sbeads/` directory, resolving to `<foundDir>/sbeads.db`.
+- **Ancestor Discovery (repository-scoped)**: When executed from a nested subdirectory of a git repository, `sbeads` searches upwards only as far as the git root, resolving to `<foundDir>/sbeads.db`. A `.sbeads/` directory above the git root is never used, and outside a git repository the search is limited to the current working directory. From a git worktree, the search covers the worktree itself and then falls back to the shared `.sbeads/` at the main working tree root, so every worktree of a repository sees one database.
 - **WAL Mode (`_journal_mode=WAL&_busy_timeout=5000`)**: Connections open SQLite with Write-Ahead Logging and a 5,000ms busy timeout enabled. This allows concurrent readers, non-blocking reads while writes occur, and graceful lock acquisition, making it robust for concurrent agent swarms and subagents.
 - **Auto-Initialization**: Database tables and indices are created automatically via `CREATE TABLE IF NOT EXISTS` on first invocation.
 
@@ -128,15 +128,15 @@ sudo mv ./sbeads /usr/local/bin/sbeads
 
 1. **`SBEADS_DIR`**: If set, `sbeads` uses this directory (appending `sbeads.db`) or uses the direct path if pointing directly to a `.db` file.
 2. **`SBEADS_DB`**: If set, `sbeads` uses this database file path directly (or appends `sbeads.db` if pointing to a directory).
-3. **Ancestor Search**: Walks upwards from the current working directory looking for a directory named `.sbeads`. If found, uses `<foundDir>/sbeads.db`.
-4. **Default**: Returns `.sbeads/sbeads.db` in the current working directory.
+3. **Ancestor Search (repository-scoped)**: Walks upwards from the current working directory looking for a directory named `.sbeads`, but stops at the git root. A `.sbeads/` above the git root is ignored. Outside a git repository there is no upward walk at all — only the current directory is checked. From a git worktree this covers the worktree first (a worktree-local `.sbeads/` wins) before falling back to the main working tree root.
+4. **Default**: With no `.sbeads` found, creates one at the main working tree root when inside a repository — for a git worktree that is the main repository root, so all worktrees share one database (`<mainRoot>/.sbeads/sbeads.db`) — otherwise in the current working directory.
 
 ### Examples
 
 ```bash
-# 1. Default / Ancestor discovery (uses .sbeads/sbeads.db in project root or current dir)
+# 1. Default / Ancestor discovery (stops at the git root; nowhere to look outside a repo)
 cd /my/project/nested/subpkg
-sbeads ready  # automatically finds /my/project/.sbeads/sbeads.db!
+sbeads ready  # automatically finds /my/project/.sbeads/sbeads.db (same git repository)
 
 # 2. Directory override using SBEADS_DIR
 export SBEADS_DIR="/var/tmp/sbeads-storage"

@@ -38,9 +38,18 @@ func DetectProjectPrefix(startDir string) string {
 	for {
 		gitPath := filepath.Join(curr, ".git")
 		sbeadsPath := filepath.Join(curr, ".sbeads")
-		if _, err := os.Stat(gitPath); err == nil {
-			base := filepath.Base(curr)
-			return CleanPrefix(base)
+		if info, err := os.Stat(gitPath); err == nil {
+			if !info.IsDir() {
+				// Worktree or submodule pointer. Without a worktree-local
+				// .sbeads the project identity stays the main working tree
+				// folder, so every worktree of a repo shares one prefix.
+				if stat, err := os.Stat(sbeadsPath); err != nil || !stat.IsDir() {
+					if main := MainWorktreeRoot(curr); main != "" {
+						return CleanPrefix(filepath.Base(main))
+					}
+				}
+			}
+			return CleanPrefix(filepath.Base(curr))
 		}
 		if stat, err := os.Stat(sbeadsPath); err == nil && stat.IsDir() {
 			base := filepath.Base(curr)

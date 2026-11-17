@@ -8,7 +8,7 @@ Command-line interface and subcommand implementations for the `sbeads` / `bd` to
 
 - CLI commands: `assign`, `block`, `claim`, `close`, `context`, `create`, `delete` (aliases `del`, `rm`), `dep` (subcommands `add`, `list`, `rm`), `export`, `import` (alias `sync`), `list`, `ready`, `reopen`, `root`, `show`, `unblock`, `unclaim`, `update`, and `version`
 - Flag parsing and validation
-- Database ancestor discovery for `.sbeads/sbeads.db`
+- Repository-scoped database ancestor discovery for `.sbeads/sbeads.db`
 - Formatted console output, status badges, and CLI test helpers
 
 ## Local Contracts
@@ -17,11 +17,11 @@ Command-line interface and subcommand implementations for the `sbeads` / `bd` to
 - Strict source file ceiling: every source file and test file must stay under 400 LOC
 - Commands initialize database and domain services via `AppContext` during `PersistentPreRunE`
 - Database connections close in `PersistentPostRunE`
-- Database location follows resolution precedence: explicit flag, `SBEADS_DB` / `SBEADS_DIR` environment variables, ancestor search for `.sbeads/`, falling back to local `.sbeads/sbeads.db`
+- Database location follows resolution precedence: explicit flag, `SBEADS_DB` / `SBEADS_DIR` environment variables, repository-scoped ancestor search for `.sbeads/` (never above the git root), falling back to `<mainRoot>/.sbeads/sbeads.db` at the main working tree root inside a repository (all git worktrees share it; a worktree-local `.sbeads/` overrides) or `<cwd>/.sbeads/sbeads.db` outside one
 - Status badges follow canonical representations: `[O]` for OPEN, `[C]` for CLAIMED, `[B]` for BLOCKED, `[X]` for CLOSED
 - Non-zero exit code returned on application errors
 - Delete command refuses to remove an issue if active dependent issues exist unless --force or --cascade is passed
-- Create command determines issue prefix using flag --prefix, environment variable SBEADS_PREFIX, or active git repository folder name
+- Create command determines issue prefix using flag --prefix, environment variable SBEADS_PREFIX, or the main working tree folder name (a git worktree resolves to its main repository, so the prefix stays stable across worktrees)
 - Mutation commands (update, reopen, block, unblock, assign) re-compute HMAC-SHA256 signatures to guarantee database integrity
 - Root command invocation without arguments dynamically renders complete Cobra help with all registered subcommands
 
